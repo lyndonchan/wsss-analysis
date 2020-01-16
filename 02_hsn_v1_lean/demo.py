@@ -384,17 +384,17 @@ def segment_adp(sess_id, model_type, batch_size, size, set_name, should_saveimg,
 
 if __name__ == "__main__":
     # ADP
-    segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
-    segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
-    segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
-    segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
 
     # VOC2012
-    segment(dataset='VOC2012', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
-    segment(dataset='VOC2012', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='VOC2012', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='VOC2012', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
 
     # DeepGlobe
-    segment(dataset='DeepGlobe_train75', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
-    segment(dataset='DeepGlobe_train75', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
-    segment(dataset='DeepGlobe_train37.5', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='DeepGlobe_train75', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='DeepGlobe_train75', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='DeepGlobe_train37.5', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
     segment(dataset='DeepGlobe_train37.5', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
