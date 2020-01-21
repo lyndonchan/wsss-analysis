@@ -95,3 +95,17 @@ To run `03_sec-dsrg` (SEC, DSRG performance in Section 5):
 | VOC2012           | train     | val     | 0.278712 | 0.369245 | 0.31154  | 0.221363    | 0.149691 | 0.149691 | 0.267664 | 0.058311    |
 | DeepGlobe         | train75   | test25  | 0.182277 | 0.085352 | 0.109707 | 0.23613     | 0.176401 | 0.176401 | 0.136987 | 0.264118    |
 | DeepGlobe         | train37.5 | test25  | 0.232526 | 0.09789  | 0.02148  | 0.306189    | 0.153347 | 0.153347 | 0.215143 | 0.208705    |
+
+## Examples
+
+### ADP-morph
+![](/qual_eval_ADP-morph.png)
+
+### ADP-func
+![](/qual_eval_ADP-func.png)
+
+### VOC2012
+![](/qual_eval_VOC2012.png)
+
+### DeepGlobe
+![](/qual_eval_DeepGlobe.png)
