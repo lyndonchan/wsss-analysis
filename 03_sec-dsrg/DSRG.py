@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import tensorflow as tf
 
@@ -6,6 +5,23 @@ from lib.crf import crf_inference
 from lib.CC_labeling_8 import CC_lab
 
 def single_generate_seed_step(params):
+    """Implemented seeded region growing
+
+    Parameters
+    ----------
+    params : 3-tuple of numpy 4D arrays
+        (tag) : numpy 4D array (size: B x 1 x 1 x C), where B = batch size, C = number of classes
+            GT label
+        (cue) : numpy 4D array (size: B x H_c x W_c x C), where H_c = cue height, W_c = cue width
+            Weak cue
+        (prob) : numpy 4D array (size: B x H_c x W_c x C), where H_c = cue height, W_c = cue width
+            Final feature map
+
+    Returns
+    -------
+    (cue) : numpy 4D array (size: B x H_c x W_c x C), where H_c = cue height, W_c = cue width
+            Weak cue, after seeded region growing
+    """
     # th_f,th_b = 0.85,0.99
     th_f, th_b = 0.5, 0.7
     tag, cue, prob = params
@@ -46,6 +62,8 @@ def single_generate_seed_step(params):
     return np.expand_dims(cue, axis=0)
 
 class DSRG():
+    """Class for the DSRG method"""
+
     def __init__(self, config):
         self.config = config
         self.dataset = self.config.get('dataset')
@@ -80,6 +98,26 @@ class DSRG():
         self.pool = self.config.get('pool')
 
     def build(self,net_input=None,net_label=None,net_cues=None,net_id=None,phase='train'):
+        """Build DSRG model
+
+        Parameters
+        ----------
+        net_input : Tensor, optional
+            Input images in batch, after resizing and normalizing
+        net_label : Tensor, optional
+            GT segmentation in batch, after resizing
+        net_cues : Tensor, optional
+            Weak cue labels in batch, after resizing
+        net_id : Tensor, optional
+            Filenames in batch
+        phase : str, optional
+            Phase to run DSRG model
+
+        Returns
+        -------
+        (output) : Tensor
+            Final layer of FCN model of DSRG
+        """
         if "output" not in self.net:
             if phase == 'train':
                 with tf.name_scope("placeholder"):
@@ -112,6 +150,18 @@ class DSRG():
         return self.net["output"]
 
     def create_network(self, phase):
+        """Helper function to build DSRG model
+
+        Parameters
+        ----------
+        phase : str, optional
+            Phase to run DSRG model
+
+        Returns
+        -------
+        (crf) : Tensor
+            Final layer of FCN model of DSRG
+        """
         if self.init_model_path is not None:
             self.load_init_model()
         with tf.name_scope("vgg") as scope:
@@ -127,16 +177,29 @@ class DSRG():
             fc4 = self.build_fc(block,["fc6_4","relu6_4","drop6_4","fc7_4","relu7_4","drop7_4","fc8_4"], dilate_rate=24)
             self.net["fc8"] = self.net[fc1]+self.net[fc2]+self.net[fc3]+self.net[fc4]
 
-            # SEC
+            # DSRG
             softmax = self.build_sp_softmax("fc8","fc8-softmax")
             if phase in ['train', 'debug']:
                 new_seed = self.build_dsrg_layer("cues","fc8-softmax","new_cues")
-            # crf = self.build_crf("fc8","crf") # old
             crf = self.build_crf("fc8-softmax", "crf")  # new
 
             return self.net[crf] # NOTE: crf is log-probability
 
     def build_block(self,last_layer,layer_lists):
+        """Build a block of the DSRG model
+
+        Parameters
+        ----------
+        last_layer : Tensor
+            The most recent layer used to build the DSRG model
+        layer_lists : list of str
+            List of strings of layer names to build inside the current block
+
+        Returns
+        -------
+        last_layer : Tensor
+            The output layer of the current block
+        """
         for layer in layer_lists:
             if layer.startswith("conv"):
                 if layer[4] != "5":
@@ -177,6 +240,21 @@ class DSRG():
         return last_layer
 
     def build_fc(self,last_layer, layer_lists, dilate_rate=12):
+        """Build a block of fully-connected layers
+
+        Parameters
+        ----------
+        last_layer : Tensor
+            The most recent layer used to build the DSRG model
+        layer_lists : list of str
+            List of strings of layer names to build inside the current block
+        dilate_rate : int, optional
+            Dilation rate for atrous 2D convolutional layers
+        Returns
+        -------
+        last_layer : Tensor
+            The output layer of the current block
+        """
         for layer in layer_lists:
             if layer.startswith("fc"):
                 with tf.name_scope(layer) as scope:
@@ -203,6 +281,19 @@ class DSRG():
         return last_layer
 
     def build_sp_softmax(self,last_layer,layer):
+        """Build a block of a fully-connected layer and softmax
+
+        Parameters
+        ----------
+        last_layer : Tensor
+            The most recent layer used to build the DSRG model
+        layer : str
+            Name of the softmax output layer
+        Returns
+        -------
+        layer : str
+            Name of the softmax output layer
+        """
         preds_max = tf.reduce_max(self.net[last_layer],axis=3,keepdims=True)
         preds_exp = tf.exp(self.net[last_layer] - preds_max)
         self.net[layer] = preds_exp / tf.reduce_sum(preds_exp,axis=3,keepdims=True) + self.min_prob
@@ -210,6 +301,20 @@ class DSRG():
         return layer
 
     def build_crf(self,featmap_layer,layer):
+        """Build a custom dense CRF layer
+
+        Parameters
+        ----------
+        featemap_layer : str
+            Layer name of the feature map inputted to dense CRF layer
+        layer : str
+            Layer name of the dense CRF layer
+
+        Returns
+        -------
+        layer : str
+            Layer name of the dense CRF layer
+        """
         origin_image = self.net["input"] + self.img_mean
         origin_image_zoomed = tf.image.resize_bilinear(origin_image,(self.seed_size, self.seed_size))
         featemap = self.net[featmap_layer]
@@ -232,11 +337,23 @@ class DSRG():
         return layer
 
     def build_dsrg_layer(self,seed_layer,prob_layer,layer):
+        """Build DSRG layer
+
+        Parameters
+        ----------
+        seed_layer : str
+            Layer name of the weak cues
+        prob_layer : str
+            Layer name of softmax
+        layer : str
+            Layer name of the DSRG layer
+
+        Returns
+        -------
+        layer : str
+            Layer name of the DSRG layer
+        """
         def generate_seed_step(tags,cues,probs):
-            ''' tags shape: [-1,21]
-                cues shape: [-1,41,41,21]
-                probs shape: [-1,41,41,21]
-            '''
             tags = np.reshape(tags,[-1,1,1,self.num_classes])
 
             params_list = []
@@ -255,12 +372,27 @@ class DSRG():
         return layer
 
     def load_init_model(self):
+        """Load initialized layer"""
         model_path = self.config["init_model_path"]
         self.init_model = np.load(model_path,encoding="latin1").item()
-        print("load init model success: %s" % model_path)
 
     def get_weights_and_bias(self,layer,shape=None):
-        print("layer: %s" % layer)
+        """Load saved weights and biases for saved network
+
+        Parameters
+        ----------
+        layer : str
+            Name of current layer
+        shape : list of int (size: 4), optional
+            4D shape of the convolutional or fully-connected layer
+
+        Returns
+        -------
+        weights : Variable
+            Saved weights
+        bias : Variable
+            Saved biases
+        """
         if layer in self.weights:
             return self.weights[layer]
         if shape is not None:
@@ -313,6 +445,7 @@ class DSRG():
         return weights,bias
 
     def pred(self):
+        """Implement final segmentation prediction as argmax of final feature map"""
         if self.h is not None:
             self.net["rescale_output"] = tf.image.resize_bilinear(self.net["output"], (self.h, self.w))
         else:
@@ -324,6 +457,13 @@ class DSRG():
         self.net["pred"] = tf.argmax(self.net["rescale_output"], axis=3)
 
     def getloss(self):
+        """Construct overall loss function
+
+        Returns
+        -------
+        loss : Tensor
+            Output of overall loss function
+        """
         loss = 0
         
         # for DSRG
@@ -337,6 +477,20 @@ class DSRG():
         return loss
 
     def get_balanced_seed_loss(self,softmax,cues):
+        """Balanced seeding loss function
+
+        Parameters
+        ----------
+        softmax : Tensor
+            Final feature map
+        cues : Tensor
+            Weak cues
+
+        Returns
+        -------
+        (loss) : Tensor
+            Output of balanced seeding loss function (sum of foreground/background losses)
+        """
         count_bg = tf.reduce_sum(cues[:,:,:,0:1],axis=(1,2,3),keepdims=True)
         loss_bg = -tf.reduce_mean(tf.reduce_sum(cues[:,:,:,0:1]*tf.log(softmax[:,:,:,0:1]),axis=(1,2,3),keepdims=True)/(count_bg+1e-8))
 
@@ -345,6 +499,20 @@ class DSRG():
         return loss_bg+loss_fg
 
     def get_constrain_loss(self,softmax,crf):
+        """Constrain loss function
+
+        Parameters
+        ----------
+        softmax : Tensor
+            Final feature map
+        crf : Tensor
+            Output of dense CRF
+
+        Returns
+        -------
+        loss : Tensor
+            Output of constrain loss function
+        """
         probs_smooth = tf.exp(crf)
         loss = tf.reduce_mean(tf.reduce_sum(probs_smooth * tf.log(probs_smooth/(softmax+1e-8)+1e-8), axis=3))
         return loss

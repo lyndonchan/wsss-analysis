@@ -3,6 +3,8 @@ from keras.preprocessing.image import ImageDataGenerator
 import pandas as pd
 
 class Dataset:
+    """Class for implementing dataset handling"""
+
     def __init__(self, data_type='ADP', size=321, batch_size=16):
         self.data_type = data_type
         self.size = size
@@ -11,13 +13,12 @@ class Dataset:
         #
         self.load_attributes()
         self.load_data()
-        # self.load_colours()
 
     def load_attributes(self):
+        """Load dataset attributes, especially ImageDataGenerator"""
+
         if self.data_type == 'ADP':
             self.devkit_dir = os.path.join(self.database_dir, 'ADPdevkit', 'ADPRelease1')
-            # self.sets = ['train', 'valid', 'test']
-            # self.is_evals = [False, True, True]
             self.sets = ['valid', 'test']
             self.is_evals = [True, True]
             self.class_names = ['E.M.S', 'E.M.U', 'E.M.O', 'E.T.S', 'E.T.U', 'E.T.O', 'E.P', 'C.D.I', 'C.D.R', 'C.L', 'H.E',
@@ -56,8 +57,6 @@ class Dataset:
             self.devkit_dir = os.path.join(self.database_dir, 'VOCdevkit', 'VOC2012')
             self.sets = ['trainaug', 'val']
             self.is_evals = [False, True]
-            # self.sets = ['val']
-            # self.is_evals = [True]
             self.class_names = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow',
                            'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa',
                            'train',
@@ -97,6 +96,8 @@ class Dataset:
                 rescale=1. / 255)
 
     def load_data(self):
+        """Load DataFrameIterator for dataset"""
+
         self.set_gens = {}
         if self.data_type == 'ADP':
             img_folder = 'PNGImages'

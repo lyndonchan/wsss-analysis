@@ -3,6 +3,8 @@ import warnings
 from utilities import *
 
 class ADPCues:
+    """Class for handling ADP cues"""
+
     def __init__(self, model_name, batch_size, size, model_dir='models',
                  devkit_dir=os.path.join(os.path.dirname(os.getcwd()), 'database', 'ADPdevkit', 'ADPRelease1')):
         self.model_dir = model_dir
@@ -57,6 +59,13 @@ class ADPCues:
         self.unions['func'] = np.zeros((len(self.classes['valid_func'])))
 
     def get_img_names(self, set_name):
+        """Read image names from file
+
+        Parameters
+        ----------
+        set_name : str
+            Name of the dataset
+        """
         img_names = []
         if set_name is None:
             img_names_path = os.path.join(self.devkit_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
@@ -69,6 +78,8 @@ class ADPCues:
         return img_names
 
     def build_model(self):
+        """Build CNN model from saved files"""
+
         # Load architecture from json
         model_json_path = os.path.join(self.model_dir, self.model_name, self.model_name + '.json')
         json_file = open(model_json_path, 'r')
@@ -94,6 +105,20 @@ class ADPCues:
             self.thresholds = 0.5 * np.ones(self.model.output_shape[-1])
 
     def read_batch(self, batch_names):
+        """Read batch of images from filenames
+
+        Parameters
+        ----------
+        batch_names : list of str (size: B), B = batch size
+            List of filenames of images in batch
+
+        Returns
+        -------
+        img_batch_norm : numpy 4D array (size: B x H x W x 3), B = batch size
+            Normalized batch of input images
+        img_batch : numpy 4D array (size: B x H x W x 3), B = batch size
+            Unnormalized batch of input images
+        """
         cur_batch_size = len(batch_names)
         img_batch = np.empty((cur_batch_size, self.size, self.size, 3), dtype='uint8')
         for i in range(cur_batch_size):
@@ -106,6 +131,20 @@ class ADPCues:
         return img_batch_norm, img_batch
 
     def get_grad_cam_weights(self, dummy_image, should_normalize=True):
+        """Obtain Grad-CAM weights of the model
+
+        Parameters
+        ----------
+        dummy_image : numpy 4D array (size: 1 x H x W x 3)
+            A dummy image to calculate gradients
+        should_normalize : bool, optional
+            Whether to normalize the gradients
+
+        Returns
+        -------
+        weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+            The Grad-CAM weights of the model
+        """
         def find_final_layer(model):
             for iter_layer, layer in reversed(list(enumerate(model.layers))):
                 if type(layer) == type(layer) == keras.layers.convolutional.Conv2D:

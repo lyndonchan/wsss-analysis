@@ -3,11 +3,11 @@
 ## Introduction
 ![](/methods.png)
 
-We conduct the first comprehensive analysis of Weakly-Supervised Semantic Segmentation (WSSS) with image label supervision in different image domains (submitted to IJCV [pre-print](https://arxiv.org/abs/1912.11186)). WSSS has been almost exclusively evaluated on PASCAL VOC2012 but little work has been done on applying to different image domains, such as histopathology and satellite images. The paper analyzes the compatibility of different methods for representative datasets and presents principles for applying to an unseen dataset.
+We conduct the first comprehensive analysis of Weakly-Supervised Semantic Segmentation (WSSS) with image label supervision in different image domains (submitted to IJCV: [pre-print](https://arxiv.org/abs/1912.11186)). WSSS has been almost exclusively evaluated on PASCAL VOC2012 but little work has been done on applying to different image domains, such as histopathology and satellite images. The paper analyzes the compatibility of different methods for representative datasets and presents principles for applying to an unseen dataset.
 
 ![](/method.png)
 
-We have provided the evaluation code used to generate the weak localization cues and final segmentations from Section 5 (Performance Evaluation) of the paper for reproducing our results. Pretrained models and evaluation images are also available for download.
+In this repository, we provide the evaluation code used to generate the weak localization cues and final segmentations from Section 5 (Performance Evaluation) of the paper. The code release enables reproducing the results in our paper. Pretrained models and evaluation images are also available for download.
 
 ## Citing this repository
 
@@ -21,7 +21,6 @@ If you find this code useful in your research, please consider citing us:
             archivePrefix={arXiv},
             primaryClass={cs.CV}
         }
-
 
 ## Getting Started
 
@@ -47,12 +46,13 @@ Optional
 
 ## Downloading data
 
-Download `wsss-analysis_data.zip` (? GB) from OneDrive containing pretrained models, ground-truth annotations, and images [here](link) and extract the contents into your `wsss-analysis\database` directory.
+Download `wsss-analysis_data.zip` (9.9 GB) from Google Drive containing pretrained models, ground-truth annotations, and images [here](https://drive.google.com/file/d/1D77LEFqmaeRDqoz4nPipTmJI03377mr2/view?usp=sharing) and extract the contents into your `wsss-analysis\database` directory.
 
 Note: the training-set images of ADP are released on a case-by-case basis due to the confidentiality agreement for releasing the data. To obtain access to `wsss-analysis\database\ADPdevkit\ADPRelease1\JPEGImages` and `wsss-analysis\database\ADPdevkit\ADPRelease1\PNGImages` needed for `gen_cues` in `01_weak_cues`, apply for access separately [here](http://www.dsp.utoronto.ca/projects/ADP/ADP_Database/).
 
 ## Running the code
 
+### Scripts
 To run `01_weak_cues` (cues performance in Section 5):
 ```
 python 01_weak_cues/demo.py
@@ -68,11 +68,21 @@ To run `03_sec-dsrg` (SEC, DSRG performance in Section 5):
 ./run_all.sh
 ```
 
-## Notebooks
+### Notebooks
 
-(Notebooks showing segmentation results here)
+`02_hsn_v1_lean`:
+* VGG16-HistoSegNet on ADP: [02_hsn_v1_lean/02_hsn_v1_lean-adp.ipynb](02_hsn_v1_lean/02_hsn_v1_lean-adp.ipynb)
+* VGG16-HistoSegNet on VOC2012: [02_hsn_v1_lean/02_hsn_v1_lean-voc2012.ipynb](02_hsn_v1_lean/02_hsn_v1_lean-voc2012.ipynb)
+* VGG16-HistoSegNet on DeepGlobe: [02_hsn_v1_lean/02_hsn_v1_lean-deepglobe.ipynb](02_hsn_v1_lean/02_hsn_v1_lean-deepglobe.ipynb)
+
+`03_sec-dsrg`:
+* VGG16-SEC on ADP-morph: [03_sec-dsrg/03_sec-adp-morph.ipynb](03_sec-dsrg/03_sec-adp-morph.ipynb)
+* VGG16-SEC on ADP-func: [03_sec-dsrg/03_sec-adp-func.ipynb](03_sec-dsrg/03_sec-adp-func.ipynb)
+* VGG16-SEC on VOC2012: [03_sec-dsrg/03_sec-voc2012.ipynb](03_sec-dsrg/03_sec-voc2012.ipynb)
+* VGG16-SEC on DeepGlobe: [03_sec-dsrg/03_sec-deepglobe.ipynb](03_sec-dsrg/03_sec-deepglobe.ipynb)
 
 ## Results
+(NOTE: some numerical results differ slightly from those reported in the paper due to a minor variation in the way the Grad-CAM gradients are normalized for X1.7/M7-HistoSegNet. See [hsn_v1](https://github.com/lyndonchan/hsn_v1) to replicate those results for ADP precisely.)
 
 | Seeding   Network | -         | -       | VGG16    | -        | -        | -           | X1.7/M7  | -        | -        | -           |
 |-------------------|-----------|---------|----------|----------|----------|-------------|----------|----------|----------|-------------|

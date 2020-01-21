@@ -6,6 +6,8 @@ import warnings
 from utilities import *
 
 class ADPCues:
+    """Class for handling ADP cues"""
+
     def __init__(self, model_name, batch_size, size, model_dir='models',
                  devkit_dir=os.path.join(os.path.dirname(os.getcwd()), 'database', 'ADPdevkit', 'ADPRelease1')):
         self.model_dir = model_dir
@@ -60,6 +62,13 @@ class ADPCues:
         self.unions['func'] = np.zeros((len(self.classes['valid_func'])))
 
     def get_img_names(self, set_name):
+        """Read image names from file
+
+        Parameters
+        ----------
+        set_name : str
+            Name of the dataset
+        """
         img_names = []
         if set_name is None:
             img_names_path = os.path.join(self.devkit_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
@@ -79,6 +88,8 @@ class ADPCues:
         return img_names
 
     def build_model(self):
+        """Build CNN model from saved files"""
+
         # Load architecture from json
         model_json_path = os.path.join(self.model_dir, self.model_name, self.model_name + '.json')
         json_file = open(model_json_path, 'r')
@@ -104,6 +115,20 @@ class ADPCues:
             self.thresholds = 0.5 * np.ones(self.model.output_shape[-1])
 
     def read_batch(self, batch_names):
+        """Read batch of images from filenames
+
+        Parameters
+        ----------
+        batch_names : list of str (size: B), B = batch size
+            List of filenames of images in batch
+
+        Returns
+        -------
+        img_batch_norm : numpy 4D array (size: B x H x W x 3), B = batch size
+            Normalized batch of input images
+        img_batch : numpy 4D array (size: B x H x W x 3), B = batch size
+            Unnormalized batch of input images
+        """
         cur_batch_size = len(batch_names)
         img_batch = np.empty((cur_batch_size, self.size, self.size, 3), dtype='uint8')
         for i in range(cur_batch_size):
@@ -116,6 +141,20 @@ class ADPCues:
         return img_batch_norm, img_batch
 
     def get_grad_cam_weights(self, dummy_image, should_normalize=True):
+        """Obtain Grad-CAM weights of the model
+
+        Parameters
+        ----------
+        dummy_image : numpy 4D array (size: 1 x H x W x 3)
+            A dummy image to calculate gradients
+        should_normalize : bool, optional
+            Whether to normalize the gradients
+
+        Returns
+        -------
+        weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+            The Grad-CAM weights of the model
+        """
         def find_final_layer(model):
             for iter_layer, layer in reversed(list(enumerate(model.layers))):
                 if type(layer) == type(layer) == keras.layers.convolutional.Conv2D:
@@ -146,6 +185,24 @@ class ADPCues:
 
     def grad_cam(self, weights, images, is_pass_threshold, orig_sz=[224, 224],
                  should_upsample=False):
+        """Generate Grad-CAM
+
+        Parameters
+        ----------
+        weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+            The Grad-CAM weights of the model
+        images : numpy 4D array (size: B x H x W x 3), where B = batch size
+            The batch of input images
+        is_pass_threshold : numpy 2D bool array (size: B x C), where B = batch size, C = number of classes
+            An array saving which classes pass the pre-defined thresholds for each image in the batch
+        orig_sz : list of int, optional
+            2D size of original images
+
+        Returns
+        -------
+        cams_thresh : numpy 4D array (size: B x H x W x C), B = batch size, C = number of classes
+            The thresholded Grad-CAMs
+        """
         conv_output = self.model.get_layer(self.final_layer).output  # activation_7
         conv_func = K.function([self.model.layers[0].input], [conv_output])
         conv_val = conv_func([images])
@@ -161,11 +218,44 @@ class ADPCues:
         return cams_thresh
 
     def split_by_httclass(self, H):
+        """Split classes in incoming variable by HTT class
+
+        Parameters
+        ----------
+        H : numpy <=2D array (size: B x C x ?), where B = batch size, C = number of classes
+            Variable to be split
+
+        Returns
+        -------
+        (H_morph) : numpy <=2D array (size: B x C_morph x ?), where B = batch size, C_morph = number of morphological classes
+            Split morphological classes in variable
+        (H_func) : numpy <=2D array (size: B x C_func x ?), where B = batch size, C_morph = number of functional classes
+            Split functional classes in variable
+        """
         morph_all_inds = [i for i, x in enumerate(self.classes['all']) if x in self.classes['morph']]
         func_all_inds = [i for i, x in enumerate(self.classes['all']) if x in self.classes['func']]
         return H[:, morph_all_inds], H[:, func_all_inds]
 
     def modify_by_htt(self, gradcam, images, classes, gradcam_adipose=None):
+        """Generates non-foreground class activations and appends to the foreground class activations
+
+        Parameters
+        ----------
+        gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+            The serialized Grad-CAM for the current batch
+        images : numpy 3D array (size: self.batch_size x H x W x 3)
+            The input images for the current batch
+        classes : list (size: C), where C = number of classes
+            The list of classes in gradcam
+        gradcam_adipose : numpy 4D array (size: self.num_imgs x C x H x W), where C = number of classes,
+                          or None, optional
+            Adipose class Grad-CAM (if segmenting functional types) or None (if not segmenting functional types)
+
+        Returns
+        -------
+        gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+            The modified Grad-CAM for the current batch, with non-foreground class activations appended
+        """
         if gradcam_adipose is None:
             htt_class = 'morph'
         else:
@@ -207,13 +297,23 @@ class ADPCues:
         return gradcam
 
     def update_cues(self, gradcam, class_inds, htt_class, indices):
+        """Update the cues class object with current batch's Grad-CAM
+
+        Parameters
+        ----------
+        gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+            The serialized Grad-CAM for the current batch
+        class_inds : numpy 1D array (size: self.batch_size)
+            List of image indices in batch, as array
+        htt_class : str
+            The type of segmentation set to solve
+        indices : list of int (size: self.batch_size)
+            List of image indices in batch
+        """
         localization_onehot = np.zeros_like(gradcam)
-        background_mode = 'chan'  # {'chan', 'kolesnikov'}
-        # Obtain localization cues
-        if background_mode == 'chan':
-            # Non-other
-            localization = np.array(
-                gradcam > 0.2 * np.expand_dims(np.expand_dims(np.max(gradcam, axis=(2, 3)), axis=2), axis=3))
+        # Non-other
+        localization = np.array(gradcam > 0.2 *
+                                np.expand_dims(np.expand_dims(np.max(gradcam, axis=(2, 3)), axis=2), axis=3))
 
         # Solve overlap conflicts
         class_rank = np.argsort(-np.sum(np.sum(localization, axis=-1), axis=-1))  # from largest to smallest masks
@@ -232,6 +332,20 @@ class ADPCues:
             self.cues[htt_class]['%d_cues' % x] = np.array(np.where(localization_onehot[i]))  # class is front
 
     def read_gt_batch(self, htt_class, batch_names):
+        """Read batch of GT segmentation images
+
+        Parameters
+        ----------
+        htt_class : str
+            The type of segmentation set to solve
+        batch_names : list of str (size: B), B = batch size
+            List of filenames of images in batch
+
+        Returns
+        -------
+        gt_batch : numpy 4D array (size: B x H x W x 3), where B = batch size
+            The batch of GT segmentation images
+        """
         cur_batch_size = len(batch_names)
         gt_batch = np.empty((cur_batch_size, self.size, self.size, 3), dtype='uint8')
         batch_names = [os.path.splitext(x)[0] + '.png' for x in batch_names]

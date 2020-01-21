@@ -12,6 +12,20 @@ from pydensecrf.utils import unary_from_softmax
 import matplotlib.pyplot as plt
 
 def build_model(model_dir, model_name):
+    """Build model from saved files
+
+    Parameters
+    ----------
+    model_dir : str
+        Directory holding the model files
+    model_name : str
+        The name of the model files
+
+    Returns
+    -------
+    model : keras.engine.sequential.Sequential object
+        The built model from file
+    """
     # Load architecture from json
     model_json_path = os.path.join(model_dir, model_name + '.json')
     json_file = open(model_json_path, 'r')
@@ -29,11 +43,39 @@ def build_model(model_dir, model_name):
     return model
 
 def load_thresholds(model_dir, model_name):
+    """Obtain Grad-CAM weights of the model
+
+    Parameters
+    ----------
+    dummy_image : numpy 4D array (size: 1 x H x W x 3)
+        A dummy image to calculate gradients
+    should_normalize : bool, optional
+        Whether to normalize the gradients
+
+    Returns
+    -------
+    weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+        The Grad-CAM weights of the model
+    """
     thresh_path = os.path.join(model_dir, model_name + '.mat')
     tmp = io.loadmat(thresh_path)
     return tmp.get('optimalScoreThresh')
 
 def load_classes(dataset):
+    """Obtain Grad-CAM weights of the model
+
+    Parameters
+    ----------
+    dummy_image : numpy 4D array (size: 1 x H x W x 3)
+        A dummy image to calculate gradients
+    should_normalize : bool, optional
+        Whether to normalize the gradients
+
+    Returns
+    -------
+    weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+        The Grad-CAM weights of the model
+    """
     if dataset == 'VOC2012':
         class_names = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow',
                    'diningtable', 'dog', 'horse', 'motorbike', 'person', 'pottedplant', 'sheep', 'sofa', 'train',
@@ -46,26 +88,21 @@ def load_classes(dataset):
         seg_class_names = class_names
     return class_names, seg_class_names
 
-def load_colours(dataset):
-    if dataset == 'VOC2012':
-        return np.array([(0, 0, 0), (128, 0, 0), (0, 128, 0), (128, 128, 0),
-                          (0, 0, 128), (128, 0, 128), (0, 128, 128), (128, 128, 128),
-                          (64, 0, 0), (192, 0, 0), (64, 128, 0), (192, 128, 0),
-                          (64, 0, 128), (192, 0, 128), (64, 128, 128), (192, 128, 128),
-                          (0, 64, 0), (128, 64, 0), (0, 192, 0), (128, 192, 0),
-                          (0, 64, 128)])  # using palette for pascal voc
-    elif 'DeepGlobe' in dataset:
-        return np.array([(0, 255, 255), (255, 255, 0), (255, 0, 255), (0, 255, 0), (0, 0, 255),
-                        (255, 255, 255), (0, 0, 0)])
-    elif dataset == 'CityScapes':
-        return np.array([(0, 0, 0), (111, 74, 0), (81, 0, 81), (128, 64, 128), (244, 35, 232), (250, 170, 160),
-                         (230, 150, 140), (70, 70, 70), (102, 102, 156), (190, 153, 153), (180, 165, 180),
-                         (150, 100, 100), (150, 120, 90), (153, 153, 153), (153, 153, 153), (250, 170, 30),
-                         (220, 220, 0), (107, 142, 35), (152, 251, 152), (70, 130, 180), (220, 20, 60), (255, 0, 0),
-                         (0, 0, 142), (0, 0, 70), (0, 60, 100), (0, 0, 90), (0, 0, 110), (0, 80, 100), (0, 0, 230),
-                         (119, 11, 32), (0, 0, 142)])
-
 def get_colours(segset):
+    """Obtain Grad-CAM weights of the model
+
+    Parameters
+    ----------
+    dummy_image : numpy 4D array (size: 1 x H x W x 3)
+        A dummy image to calculate gradients
+    should_normalize : bool, optional
+        Whether to normalize the gradients
+
+    Returns
+    -------
+    weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+        The Grad-CAM weights of the model
+    """
     if segset == 'ADP-morph':
         return np.array([(255, 255, 255), (0, 0, 128), (0, 128, 0), (255, 165, 0), (255, 192, 203),
                          (255, 0, 0), (173, 20, 87), (176, 141, 105), (3, 155, 229),
@@ -88,6 +125,20 @@ def get_colours(segset):
                          (255, 255, 255), (0, 0, 0)])
 
 def normalize(dataset, x):
+    """Obtain Grad-CAM weights of the model
+
+    Parameters
+    ----------
+    dummy_image : numpy 4D array (size: 1 x H x W x 3)
+        A dummy image to calculate gradients
+    should_normalize : bool, optional
+        Whether to normalize the gradients
+
+    Returns
+    -------
+    weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+        The Grad-CAM weights of the model
+    """
     if dataset == 'VOC2012':
         x[:, :, 0] -= 104
         x[:, :, 1] -= 117
@@ -99,6 +150,28 @@ def normalize(dataset, x):
         return x / 255
 
 def read_batch(img_dir, batch_names, batch_sz, sz, dataset):
+    """Read a batch of images
+
+    Parameters
+    ----------
+    img_dir : str
+        Directory holding the input images
+    batch_names : list of str
+        Filenames of the input images
+    batch_sz : int
+        The batch size
+    img_mean : list of float (size: 3), optional
+        Three-channel image set mean
+    img_std : list of float (size: 3), optional
+        Three-channel image set standard deviation
+
+    Returns
+    -------
+    img_batch_norm : numpy 4D array (size: B x H x W x 3), B = batch size
+        Normalized batch of input images
+    img_batch : numpy 4D array (size: B x H x W x 3), B = batch size
+        Unnormalized batch of input images
+    """
     img_batch = np.empty((batch_sz, sz[0], sz[1], 3), dtype='uint8')
     for i in range(batch_sz):
         if 'PNGImages' in img_dir:
@@ -111,6 +184,22 @@ def read_batch(img_dir, batch_names, batch_sz, sz, dataset):
     return img_batch_norm, img_batch
 
 def get_grad_cam_weights(input_model, dummy_image, should_normalize=True):
+    """Obtain Grad-CAM weights of the model
+
+    Parameters
+    ----------
+    input_model : keras.engine.sequential.Sequential object
+        The input model
+    dummy_image : numpy 4D array (size: 1 x H x W x 3)
+        A dummy image to calculate gradients
+    should_normalize : bool, optional
+        Whether to normalize the gradients
+
+    Returns
+    -------
+    weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+        The Grad-CAM weights of the model
+    """
     def find_final_layer(model):
         for iter_layer, layer in reversed(list(enumerate(model.layers))):
             if type(layer) == type(layer) == keras.layers.convolutional.Conv2D:
@@ -140,7 +229,33 @@ def get_grad_cam_weights(input_model, dummy_image, should_normalize=True):
 
 
 def grad_cam(input_model, weights, images, is_pass_threshold, final_layer, conf_scores, orig_sz=[224, 224],
-             should_upsample=False, batch_size=16):
+             should_upsample=False):
+    """Generate Grad-CAM
+
+    Parameters
+    ----------
+    input_model : keras.engine.sequential.Sequential object
+        The input model
+    weights : numpy 2D array (size: F x C), where F = number of features, C = number of classes
+        The Grad-CAM weights of the model
+    images : numpy 4D array (size: B x H x W x 3), where B = batch size
+        The batch of input images
+    is_pass_threshold : numpy 2D bool array (size: B x C), where B = batch size, C = number of classes
+        An array saving which classes pass the pre-defined thresholds for each image in the batch
+    final_layer : str
+        The name of the final layer
+    conf_scores : numpy 2D array (size: B x C), where B = batch size, C = number of classes
+        The confidence scores for each class of each image in the batch
+    orig_sz : list of int, optional
+        2D size of original images
+    should_upsample : bool, optional
+        Whether to upsample the generated Grad-CAM activation maps to original input size
+
+    Returns
+    -------
+    cams : numpy 4D array (size: B x H x W x C), B = batch size, C = number of classes
+        The thresholded Grad-CAMs
+    """
     conv_output = input_model.get_layer(final_layer).output  # activation_7
     conv_func = K.function([input_model.layers[0].input], [conv_output])
     conv_val = conv_func([images])
@@ -164,11 +279,50 @@ def grad_cam(input_model, weights, images, is_pass_threshold, final_layer, conf_
 
 
 def split_by_httclass(H, all_classes, morph_classes, func_classes):
+    """Split classes in incoming variable by HTT class
+
+    Parameters
+    ----------
+    H : numpy <=2D array (size: B x C x ?), where B = batch size, C = number of classes
+        Variable to be split
+    all_classes : list of str
+        List of all classes
+    morph_classes : list of str (size: C_morph), where C_morph = number of morphological classes
+        List of morphological classes, a subset of all_classes
+    func_classes : list of str (size: C_func), where C_func = number of functional classes
+        List of functional classes, a subset of all_classes
+
+    Returns
+    -------
+    (H_morph) : numpy <=2D array (size: B x C_morph x ?), where B = batch size, C_morph = number of morphological classes
+        Split morphological classes in variable
+    (H_func) : numpy <=2D array (size: B x C_func x ?), where B = batch size, C_morph = number of functional classes
+        Split functional classes in variable
+    """
     morph_all_inds = [i for i, x in enumerate(all_classes) if x in morph_classes]
     func_all_inds = [i for i, x in enumerate(all_classes) if x in func_classes]
     return H[:, morph_all_inds], H[:, func_all_inds]
 
 def modify_by_htt(gradcam, images, classes, gradcam_adipose=None):
+    """Generates non-foreground class activations and appends to the foreground class activations
+
+    Parameters
+    ----------
+    gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+        The serialized Grad-CAM for the current batch
+    images : numpy 3D array (size: self.batch_size x H x W x 3)
+        The input images for the current batch
+    classes : list (size: C), where C = number of classes
+        The list of classes in gradcam
+    gradcam_adipose : numpy 4D array (size: self.num_imgs x C x H x W), where C = number of classes,
+                      or None, optional
+        Adipose class Grad-CAM (if segmenting functional types) or None (if not segmenting functional types)
+
+    Returns
+    -------
+    gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+        The modified Grad-CAM for the current batch, with non-foreground class activations appended
+    """
     if gradcam_adipose is None:
         htt_class = 'morph'
     else:
@@ -206,12 +360,27 @@ def modify_by_htt(gradcam, images, classes, gradcam_adipose=None):
         other_moh = np.max(gradcam, axis=1)
         other_gradcam = np.expand_dims(other_tissue_mult * (1 - other_moh), axis=1)
         other_gradcam = np.max(np.concatenate((other_gradcam, gradcam_adipose), axis=1), axis=1)
-        # other_gradcam = np.clip(other_gradcam, 0, 1)
         gradcam[:, other_ind] = other_gradcam
     return gradcam
 
 
 def get_cs_gradcam(gradcam, classes, htt_class):
+    """Generates class-specific Grad-CAMs from incoming Grad-CAMs
+
+    Parameters
+    ----------
+    gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+        The Grad-CAM for the current batch
+    classes : list (size: C), where C = number of classes
+        The list of classes in gradcam
+    htt_class : str
+        The type of segmentation set to solve
+
+    Returns
+    -------
+    cs_gradcam : numpy 4D array (size: self.batch_size x C x H x W), where C = number of classes
+        The class-specific Grad-CAM for the current batch
+    """
     if htt_class in ['func', 'glas']:
         other_ind = classes.index('Other')
     # Find max difference value, ind map
@@ -227,8 +396,24 @@ def get_cs_gradcam(gradcam, classes, htt_class):
             cs_gradcam[:, iter_class] = gradcam[:, iter_class]
     return cs_gradcam
 
-
 def dcrf_process(probs, images, config):
+    """
+    Run dense CRF, given probability map and input image
+
+    Parameters
+    ----------
+    probs : numpy 4D array
+        The class probability maps, in batch
+    images : numpy 4D array
+        The original input images, in batch
+    config : 6-tuple of float
+        Requested CRF configurations
+
+    Returns
+    -------
+    maxconf_crf : numpy 3D array
+        The discrete class segmentation map from dense CRF, in batch
+    """
     gauss_sxy, gauss_compat, bilat_sxy, bilat_srgb, bilat_compat, n_infer = config
 
     # Set up variable sizes
@@ -259,8 +444,23 @@ def dcrf_process(probs, images, config):
     maxconf_crf = np.argmax(crf, axis=1)
     return maxconf_crf
 
-
 def maxconf_class_as_colour(maxconf_crf, colours, size):
+    """Convert 3D discrete segmentation masks (indices) into 4D colour images, based on segmentation colour code
+
+    Parameters
+    ----------
+    maxconf_crf : numpy 3D array (size: B x H x W), where B = batch size
+        The maximum-confidence index array
+    colours : numpy 2D array (size: N x 3), where N = number of colours
+        Valid colours used in the segmentation mask images
+    size : list (size: 2)
+        Size of the image
+
+    Returns
+    -------
+    Y : numpy 4D array (size: B x H x W x 3), where B = batch size
+        The 4D outputted discrete segmentation mask image
+    """
     num_input_images = maxconf_crf.shape[0]
     Y = np.zeros((num_input_images, size[0], size[1], 3), dtype='uint8')
     for iter_input_image in range(num_input_images):
@@ -269,6 +469,20 @@ def maxconf_class_as_colour(maxconf_crf, colours, size):
     return Y
 
 def resize_stack(stack, size):
+    """Resize stack to specified 2D size
+
+    Parameters
+    ----------
+    stack : numpy 4D array (size: B x C x H x W), where B = batch size, C = number of classes
+        The stack to be resized
+    size : list of int
+        The 2D size to be resized to
+
+    Returns
+    -------
+    stack : numpy 4D array (size: B x C x H x W), where B = batch size, C = number of classes
+        The resized stack
+    """
     old_stack = stack[:]
     stack = np.zeros((stack.shape[0], stack.shape[1], size[0], size[1]))
     for i in range(stack.shape[0]):

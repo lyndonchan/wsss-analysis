@@ -19,6 +19,8 @@ from SEC import SEC
 MODEL_WSSS_ROOT = '../database/models_wsss'
 
 class Model():
+    """Wrapper class for SEC and DSRG WSSS methods"""
+
     def __init__(self, args):
         self.method = args.method
         self.dataset = args.dataset
@@ -33,6 +35,7 @@ class Model():
         self.seed_size = 41
         self.batch_size = args.batchsize
         self.should_saveimg = args.saveimg
+        self.verbose = args.verbose
 
         self.accum_num = 1
         self.pool = multiprocessing.Pool()
@@ -104,10 +107,6 @@ class Model():
             elif self.dataset == 'DeepGlobe_train37.5':
                 self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list_train37.5.txt')
             self.run_categories = ['test']
-            # if 'DeepGlobe2' in self.dataset:
-            #     self.run_categories = ['test']
-            # else:
-            #     self.run_categories = ['val']
             self.class_names = ['urban', 'agriculture', 'rangeland', 'forest', 'water', 'barren']
             self.label2rgb_colors = np.array([(0, 255, 255), (255, 255, 0), (255, 0, 255), (0, 255, 0), (0, 0, 255),
                         (255, 255, 255)])
@@ -119,6 +118,7 @@ class Model():
         self.run_categories = ['train'] + self.run_categories
         self.data_f, self.data_len = self.get_data_f(self.run_categories)
     def load(self):
+        """Load either SEC or DSRG model"""
         if self.method == 'DSRG':
             self.model = DSRG({'dataset': self.dataset, 'img_size': self.h, 'num_classes': self.num_classes,
                                'batch_size': self.batch_size, 'phase': self.phase, 'img_mean': self.img_mean,
@@ -128,6 +128,13 @@ class Model():
                               'batch_size': self.batch_size, 'phase': self.phase, 'img_mean': self.img_mean,
                               'seed_size': self.seed_size, 'pool': self.pool, 'init_model_path': self.init_model_path})
     def get_data_f(self, phases):
+        """Load names of files in the dataset
+
+        Parameters
+        ----------
+        phases : list of str
+            The phases to run the Model object on
+        """
         # cues_labels = [self.cues_data[x] for i, x in enumerate(self.cues_data.keys()) if '_labels' in x]
         # [i for i,x in enumerate(cues_labels) if 32 in x]
         cues_root = os.path.join(os.path.dirname(os.getcwd()), '01_weak_cues')
@@ -168,10 +175,31 @@ class Model():
                                 os.path.join(self.dataset_dir, "SegmentationClassAug", self.dataset, "%s.png" % line))
                 data_len[phase] = len(data_f[phase]["id"])
                 data_len[phase] = len(data_f[phase]["label"])
-        print("len:%s" % str(data_len))
+        if self.verbose:
+            print("len:%s" % str(data_len))
         return data_f,data_len
 
     def next_batch(self,category=None,max_epochs=-1):
+        """Load next batch in the dataset for running
+
+        Parameters
+        ----------
+        category : str, optional
+            The category to run the Model object in
+        max_epochs : int, optional
+            The maximum number of epochs to run the Model object before terminating
+
+        Returns
+        -------
+        img : Tensor
+            Input images in batch, after resizing and normalizing
+        label : Tensor
+            GT segmentation in batch, after resizing
+        id : Tensor
+            Filenames in batch
+        iterator : Iterator
+            Iterator object through dataset
+        """
         self.category = category
         def m_train(x):
             id_ = x["id"]
@@ -221,7 +249,6 @@ class Model():
                 "id":self.data_f[category]["id"],
                 "id_for_slice":self.data_f[category]["id_for_slice"],
                 "img_f":self.data_f[category]["img"],
-                #"gt_f":self.data_f[category]["gt"],
                 })
             dataset = dataset.repeat(max_epochs)
             dataset = dataset.shuffle(self.data_len[category])
@@ -239,7 +266,6 @@ class Model():
                 "label_f": self.data_f[category]["label"]
             })
             dataset = dataset.repeat(max_epochs)
-            # dataset = dataset.shuffle(self.data_len[category])
             dataset = dataset.map(m_val)
             dataset = dataset.batch(self.batch_size)
             iterator = dataset.make_initializable_iterator()
@@ -248,6 +274,22 @@ class Model():
             return img, label, id, iterator
 
     def image_preprocess(self, img, label=None):
+        """Load next batch in the dataset for running
+
+        Parameters
+        ----------
+        img : Tensor
+            Input images in batch, before resizing and normalizing
+        label : Tensor, optional
+            GT segmentation in batch, before resizing
+
+        Returns
+        -------
+        img : Tensor
+            Input images in batch, after resizing and normalizing
+        label : Tensor
+            GT segmentation in batch, after resizing
+        """
         if self.category in ['train', 'debug']:
             img = tf.expand_dims(img,axis=0)
             img = tf.image.resize_bilinear(img,(self.h,self.w))
@@ -273,12 +315,6 @@ class Model():
                 label = tf.expand_dims(label, axis=0)
                 label = tf.image.resize_nearest_neighbor(label, (self.h, self.w))
                 label = tf.squeeze(label, axis=0)
-                # label -= self.ignore_label
-                # label = tf.squeeze(label, squeeze_dims=[0])
-                # label += self.ignore_label
-                # label = tf.expand_dims(label, axis=0)
-                # label = tf.image.resize_nearest_neighbor(label, (self.h, self.w))
-                # label = tf.squeeze(label, axis=0)
 
             r, g, b = tf.split(axis=2, num_or_size_splits=3, value=img)
             img = tf.cast(tf.concat([b, g, r], 2), dtype=tf.float32)
@@ -287,6 +323,27 @@ class Model():
             return img, label
 
     def label2rgb(self, label, category_num, colors=[], ignore_label=128, ignore_color=(255,255,255)):
+        """Convert index labels to RGB colour images
+
+        Parameters
+        ----------
+        label : numpy 2D array (size: H x W)
+            The index label map, with each array element equal to the class index at that position
+        category_num : int
+            The number of classes
+        colours : numpy 1D array of 3-tuples of int
+            List of colours for each class
+        ignore_label : int
+            Class index to ignore as background
+        ignore_color : 3-tuple of int
+            Class colour to ignore as background
+
+        Returns
+        -------
+        (label_uint8) : numpy 2D array (size: H x W x 3)
+            The label map, as a colour RGB image
+        """
+
         if len(colors) <= 0:
             index = np.unique(label)
             index = index[index < category_num]
@@ -294,34 +351,8 @@ class Model():
         label = imgco.label2rgb(label, colors=colors, bg_label=ignore_label, bg_color=ignore_color)
         return label.astype(np.uint8)
 
-    def optimize(self):
-        for val_category in self.run_categories[1:]:
-            self.model.metric["miou_" + val_category] = tf.Variable(0.0, trainable=False)
-        self.model.loss["norm"] = self.model.getloss()
-        self.model.loss["l2"] = sum([tf.nn.l2_loss(self.model.weights[layer][0]) for layer in self.model.weights])
-        self.model.loss["total"] = self.model.loss["norm"]+ self.weight_decay * self.model.loss["l2"]
-        self.model.net["lr"] = tf.Variable(self.base_lr, trainable=False)
-        opt = tf.train.MomentumOptimizer(self.model.net["lr"], self.momentum)
-        gradients = opt.compute_gradients(self.model.loss["total"])
-        self.model.net["accum_gradient"] = []
-        self.model.net["accum_gradient_accum"] = []
-        new_gradients = []
-        for (g,v) in gradients:
-            if g is None: continue
-            if v in self.model.lr_2_list:
-                g = 2*g
-            if v in self.model.lr_10_list:
-                g = 10*g
-            if v in self.model.lr_20_list:
-                g = 20*g
-            self.model.net["accum_gradient"].append(tf.Variable(tf.zeros_like(g),trainable=False))
-            self.model.net["accum_gradient_accum"].append(self.model.net["accum_gradient"][-1].assign_add( g/self.accum_num, use_locking=True))
-            new_gradients.append((self.model.net["accum_gradient"][-1],v))
-
-        self.model.net["accum_gradient_clean"] = [g.assign(tf.zeros_like(g)) for g in self.model.net["accum_gradient"]]
-        self.model.net["accum_gradient_update"]  = opt.apply_gradients(new_gradients)
-
     def get_latest_checkpoint(self):
+        """Find the filepath to the saved model checkpoint"""
         if 'final-0.index' in os.listdir(self.save_dir):
             return os.path.join(self.save_dir, 'final-0')
         all_checkpoint_inds = [int(x.split('.')[0].split('-')[-1]) for x in os.listdir(self.save_dir) if
@@ -331,17 +362,22 @@ class Model():
         latest_checkpoint = os.path.join(self.save_dir, 'epoch-' + str(max(all_checkpoint_inds)))
         return latest_checkpoint
 
-    def restore_from_model(self,saver,model_path,checkpoint=False):
+    def restore_from_model(self,saver,model_path):
+        """Restore model from saved checkpoint
+
+        Parameters
+        ----------
+        saver : Saver
+            The Saver object used to load the model
+        model_path : str
+            The file path to the saved checkpoint
+        """
         assert self.sess is not None
-        if checkpoint is True:
-            ckpt = tf.train.get_checkpoint_state(model_path)
-            saver.restore(self.sess, ckpt.model_checkpoint_path)
-        else:
-            saver.restore(self.sess, model_path)
+        saver.restore(self.sess, model_path)
 
     def predict(self):
+        """Predict the segmentation for the requested dataset"""
         tf.reset_default_graph()
-        # self.sess = tf.Session()
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 1.0
         self.sess = tf.Session(config=config)
@@ -365,8 +401,9 @@ class Model():
         self.saver = tf.train.Saver(max_to_keep=1, var_list=self.model.trainable_list)
         latest_ckpt = self.get_latest_checkpoint()
         if latest_ckpt is not None:
-            print('Loading model from previous checkpoint %s' % latest_ckpt)
-            self.restore_from_model(self.saver, latest_ckpt, checkpoint=False)
+            if self.verbose:
+                print('Loading model from previous checkpoint %s' % latest_ckpt)
+            self.restore_from_model(self.saver, latest_ckpt)
 
         # Create save image directory if non-existent
         layers = ['rescale_output']
@@ -378,9 +415,17 @@ class Model():
                 miou_val = self.eval_miou(data_x[val_category], id_of_image[val_category], data_label[val_category],
                                           self.model.net['input'], self.model.net[layer], self.model.net['drop_prob'],
                                           val_category, saveimg_dir, should_overlay=True, is_eval=True)
-                print('mIoU [%s] = %f' % (val_category, miou_val))
+                if self.verbose:
+                    print('mIoU [%s] = %f' % (val_category, miou_val))
 
     def single_crf_metrics(self, params):
+        """Run dense CRF and save results to file
+
+        Parameters
+        ----------
+        params : tuple
+            Contains the settings for running dense CRF and saving segmentation results to file
+        """
         img, featmap, category_num, id_, output_dir, should_overlay = params
         if 'DeepGlobe' in self.dataset:
             img = cv2.resize(img, (img.shape[0] // 4, img.shape[1] // 4))
@@ -400,7 +445,36 @@ class Model():
                                                                                        category_num))
 
     def eval_miou(self, data, id, gt, input, layer, dropout, val_category, saveimg_dir, should_overlay=False, is_eval=False):
-        print('Evaluating mIoU on [%s] set' % val_category)
+        """Convert index labels to RGB colour images
+
+        Parameters
+        ----------
+        data : Tensor
+            Input images in batch, after resizing and normalizing
+        id : Tensor
+            Filenames in batch
+        gt : Tensor
+            GT segmentation in batch
+        input : Layer
+            Input layer of the network
+        dropout : Dropout
+            Dropout variable in the network
+        val_category : str
+            Name of validation set
+        saveimg_dir : str
+            Directory to save the debug images
+        should_overlay : bool, optional
+            Whether to overlay segmentation on original image
+        is_eval : bool, optional
+            Whether currently predicting on evaluation set
+
+        Returns
+        -------
+        mIoU : float
+            The mIoU of the complete evaluation set
+        """
+        if self.verbose:
+            print('Evaluating mIoU on [%s] set' % val_category)
         intersect = np.zeros((self.num_classes))
         union = np.zeros((self.num_classes))
         confusion_matrix = np.zeros((self.num_classes, self.num_classes))
@@ -410,21 +484,27 @@ class Model():
         img_ids = []
         try:
             while True:
+                # Read the input images, filenames, and GT segmentations in current batch
                 img,id_,gt_ = self.sess.run([data,id,gt])
+                # Generate predicted segmentation in current batch
                 output_scale = self.sess.run(layer,feed_dict={input:img, dropout:0.0})
                 img_ids += list(id_)
                 gt_ = gt_[:, :, :, :3]
                 i += 1
-                print('\tBatch #%d of %d' % (i, self.data_len[val_category] // self.batch_size + 1), end='')
+                if self.verbose:
+                    print('\tBatch #%d of %d' % (i, self.data_len[val_category] // self.batch_size + 1), end='')
                 start_time = time.time()
+                # Iterate through images in batch
                 for j in range(img.shape[0]):
                     if not is_eval:
                         img_curr = np.uint8(img[j] + self.img_mean)
                         gt_curr = np.uint8(gt_[j])
                         pred_curr = output_scale[j]
                     else:
+                        # Read original image
                         img_curr = cv2.cvtColor(cv2.imread(os.path.join(self.dataset_dir, 'JPEGImages',
                                                 id_[j].decode('utf-8') + '.jpg')), cv2.COLOR_RGB2BGR)
+                        # Read GT segmentation
                         if self.dataset == 'VOC2012' or 'DeepGlobe' in self.dataset:
                             gt_curr = cv2.cvtColor(cv2.imread(os.path.join(self.dataset_dir, 'SegmentationClassAug',
                                                           id_[j].decode('utf-8') + '.png')), cv2.COLOR_RGB2BGR)
@@ -434,6 +514,7 @@ class Model():
                         elif self.dataset == 'ADP-func':
                             gt_curr = cv2.cvtColor(cv2.imread(os.path.join(self.dataset_dir, 'SegmentationClassAug', 'ADP-func',
                                                               id_[j].decode('utf-8') + '.png')), cv2.COLOR_RGB2BGR)
+                        # Read predicted segmentation
                         if 'DeepGlobe' not in self.dataset:
                             pred_curr = cv2.resize(output_scale[j], (gt_curr.shape[1], gt_curr.shape[0]))
                             img_curr = cv2.resize(img_curr, (gt_curr.shape[1], gt_curr.shape[0]))
@@ -446,6 +527,7 @@ class Model():
                                                       output_scale[j], use_log=True)
                             pred_curr = cv2.resize(pred_curr, (gt_curr.shape[1], gt_curr.shape[0]))
                             img_curr = cv2.resize(img_curr, (gt_curr.shape[1], gt_curr.shape[0]))
+                    # Evaluate predicted segmentation
                     if self.dataset == 'VOC2012':
                         pred_count += np.bincount(np.argmax(pred_curr, axis=-1).ravel(), minlength=self.num_classes)
                         for k in range(pred_curr.shape[2]):
@@ -454,7 +536,6 @@ class Model():
                             confusion_matrix[k, :] += np.bincount(np.argmax(pred_curr[gt_mask], axis=-1),
                                                                   minlength=self.num_classes)
                             gt_count[k] += np.sum(gt_mask)
-                            #
                             intersect[k] += np.sum(gt_mask & pred_mask)
                             union[k] += np.sum(gt_mask | pred_mask)
                     elif self.dataset in ['ADP-morph', 'ADP-func'] or 'DeepGlobe' in self.dataset:
@@ -467,7 +548,6 @@ class Model():
                             pred_mask = np.argmax(pred_curr, axis=-1) == k
                             confusion_matrix[k, :] += np.bincount(np.argmax(pred_curr[gt_mask], axis=-1), minlength=self.num_classes)
                             gt_count[k] += np.sum(gt_mask)
-                            #
                             intersect[k] += np.sum(gt_mask & pred_mask)
                             union[k] += np.sum(gt_mask | pred_mask)
                     # Save image
@@ -479,17 +559,20 @@ class Model():
                         params = (img_curr, pred_curr, self.num_classes, id_[j].decode(),
                                   saveimg_dir, should_overlay)
                         self.single_crf_metrics(params)
-                print('\t\tElapsed time (s): %s' % (time.time() - start_time))
+                if self.verbose:
+                    print('\t\tElapsed time (s): %s' % (time.time() - start_time))
         except tf.errors.OutOfRangeError:
             print('Done evaluating mIoU on validation set')
         except Exception as e:
-            print("exception info:%s" % traceback.format_exc())
+            print("Exception info:%s" % traceback.format_exc())
+        # Evaluate mIoU and save to .xlsx file
         mIoU = np.mean(intersect / (union + 1e-7))
         if is_eval:
             df = pd.DataFrame({'Class': self.class_names + ['Mean'], 'IoU': list(intersect / (union + 1e-7)) + [mIoU]},
                               columns=['Class', 'IoU'])
             xlsx_path = os.path.join(self.eval_dir, 'metrics_' + self.dataset + '_' + val_category + '-' + self.seed_type + '.xlsx')
             df.to_excel(xlsx_path)
+        # Save confusion matrix for all classes to .png file
         count_mat = np.transpose(np.matlib.repmat(gt_count, self.num_classes, 1))
         np.savetxt(os.path.join(self.eval_dir, 'confusion_' + self.dataset + '_' + val_category + '-' + self.seed_type + '.csv'),
                    confusion_matrix / count_mat)
@@ -501,7 +584,7 @@ class Model():
         heatmap(confusion_matrix / count_mat, title, xlabel, ylabel, xticklabels, yticklabels, rot_angle=45)
         plt.savefig(os.path.join(self.eval_dir, 'confusion_' + self.dataset + '_' + val_category + '.png'), dpi=96, format='png', bbox_inches='tight')
         plt.close()
-
+        # Save confusion matrix for only foreground classes to .png file
         title = "Confusion matrix\n"
         xlabel = 'Prediction'  # "Labels"
         ylabel = 'Ground-Truth'  # "Labels"
