@@ -7,7 +7,7 @@ We conduct the first comprehensive analysis of Weakly-Supervised Semantic Segmen
 
 ![](/method.png)
 
-In this repository, we provide the evaluation code used to generate the weak localization cues and final segmentations from Section 5 (Performance Evaluation) of the paper. The code release enables reproducing the results in our paper. Pretrained models and evaluation images are also available for download.
+In this repository, we provide the evaluation code used to generate the weak localization cues and final segmentations from Section 5 (Performance Evaluation) of the paper. The code release enables reproducing the results in our paper. The Keras implementation of HistoSegNet was adapted from [hsn_v1](https://github.com/lyndonchan/hsn_v1); the Tensorflow implementations of SEC and DSRG were adapted from [SEC-tensorflow](https://github.com/xtudbxk/SEC-tensorflow) and [DSRG-tensorflow](https://github.com/xtudbxk/DSRG-tensorflow), respectively. Pretrained models and evaluation images are also available for download.
 
 ## Citing this repository
 
