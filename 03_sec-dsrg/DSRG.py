@@ -275,7 +275,7 @@ class DSRG():
                     last_layer = layer
             if layer.startswith("drop"):
                 with tf.name_scope(layer) as scope:
-                    self.net[layer] = tf.nn.dropout( self.net[last_layer],rate=self.net["drop_prob"])
+                    self.net[layer] = tf.nn.dropout( self.net[last_layer], keep_prob=1-self.net["drop_prob"])
                     last_layer = layer
 
         return last_layer
@@ -374,7 +374,7 @@ class DSRG():
     def load_init_model(self):
         """Load initialized layer"""
         model_path = self.config["init_model_path"]
-        self.init_model = np.load(model_path,encoding="latin1").item()
+        self.init_model = np.load(model_path, encoding="latin1", allow_pickle=True).item()
 
     def get_weights_and_bias(self,layer,shape=None):
         """Load saved weights and biases for saved network

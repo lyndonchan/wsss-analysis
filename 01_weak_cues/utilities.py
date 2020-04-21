@@ -180,7 +180,7 @@ def read_batch(img_dir, batch_names, batch_sz, sz, img_mean=[193.09203, 193.0920
     img_batch_norm[:, :, :, 2] = (img_batch[:, :, :, 2] - img_mean[2]) / img_std[2]
     return img_batch_norm, img_batch
 
-def get_fgbg_cues(cues, H_fg, H_bg, class_inds, indices):
+def get_fgbg_cues(cues, H_fg, H_bg, class_inds, indices, thresh):
     """Get weak foreground/background cues
 
     Parameters
@@ -195,6 +195,8 @@ def get_fgbg_cues(cues, H_fg, H_bg, class_inds, indices):
         Image indices in current batch
     indices : list (size: B), B = batch size
         Image indices in current batch, as a list
+    thresh: float
+        Confidence value for thresholding activation maps [0-1]
 
     Returns
     -------
@@ -213,7 +215,7 @@ def get_fgbg_cues(cues, H_fg, H_bg, class_inds, indices):
         localization[iter_input_image, 0] = grad < thr
     # - Foreground
     for i in range(1, n_seg_classes):
-        localization[:, i] = H_fg[:, i-1] > 0.2 * np.max(H_fg[:, i-1])
+        localization[:, i] = H_fg[:, i-1] > thresh * np.max(H_fg[:, i-1])
 
     # Solve overlap conflicts
     class_rank = np.argsort(-np.sum(np.sum(localization, axis=-1), axis=-1))  # from largest to smallest masks
@@ -231,7 +233,7 @@ def get_fgbg_cues(cues, H_fg, H_bg, class_inds, indices):
         cues['%d_cues' % x] = np.array(np.where(localization_onehot[i]))
     return cues
 
-def get_fg_cues(cues, H_fg, class_inds, indices):
+def get_fg_cues(cues, H_fg, class_inds, indices, thresh):
     """Get weak foreground cues
 
     Parameters
@@ -244,6 +246,8 @@ def get_fg_cues(cues, H_fg, class_inds, indices):
         Image indices in current batch
     indices : list (size: B), B = batch size
         Image indices in current batch, as a list
+    thresh: float
+            Confidence value for thresholding activation maps [0-1]
 
     Returns
     -------
@@ -255,7 +259,7 @@ def get_fg_cues(cues, H_fg, class_inds, indices):
     localization = np.zeros_like(localization_onehot)
     # Obtain localization cues
     for i in range(n_seg_classes):
-        localization[:, i] = H_fg[:, i] > 0.2 * np.max(H_fg[:, i])
+        localization[:, i] = H_fg[:, i] > thresh * np.max(H_fg[:, i])
 
     # Solve overlap conflicts
     class_rank = np.argsort(-np.sum(np.sum(localization, axis=-1), axis=-1))  # from largest to smallest masks

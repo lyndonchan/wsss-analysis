@@ -60,6 +60,12 @@ class ADPCues:
         self.unions = {}
         self.unions['morph'] = np.zeros((len(self.classes['valid_morph'])))
         self.unions['func'] = np.zeros((len(self.classes['valid_func'])))
+        self.predicted_totals = {}
+        self.predicted_totals['morph'] = np.zeros((len(self.classes['valid_morph'])))
+        self.predicted_totals['func'] = np.zeros((len(self.classes['valid_func'])))
+        self.gt_totals = {}
+        self.gt_totals['morph'] = np.zeros((len(self.classes['valid_morph'])))
+        self.gt_totals['func'] = np.zeros((len(self.classes['valid_func'])))
 
     def get_img_names(self, set_name):
         """Read image names from file
@@ -296,7 +302,7 @@ class ADPCues:
             gradcam[:, other_ind] = other_gradcam
         return gradcam
 
-    def update_cues(self, gradcam, class_inds, htt_class, indices):
+    def update_cues(self, gradcam, class_inds, htt_class, indices, thresh):
         """Update the cues class object with current batch's Grad-CAM
 
         Parameters
@@ -309,10 +315,12 @@ class ADPCues:
             The type of segmentation set to solve
         indices : list of int (size: self.batch_size)
             List of image indices in batch
+        thresh: float
+            Confidence value for thresholding activation maps [0-1]
         """
         localization_onehot = np.zeros_like(gradcam)
         # Non-other
-        localization = np.array(gradcam > 0.2 *
+        localization = np.array(gradcam > thresh *
                                 np.expand_dims(np.expand_dims(np.max(gradcam, axis=(2, 3)), axis=2), axis=3))
 
         # Solve overlap conflicts
