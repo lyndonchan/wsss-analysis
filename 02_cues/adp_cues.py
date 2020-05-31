@@ -9,12 +9,14 @@ class ADPCues:
     """Class for handling ADP cues"""
 
     def __init__(self, model_name, batch_size, size, model_dir='models',
-                 devkit_dir=os.path.join(os.path.dirname(os.getcwd()), 'database', 'ADPdevkit', 'ADPRelease1')):
+                 devkit_dir=os.path.join(os.path.dirname(os.getcwd()), 'database', 'ADPdevkit', 'ADPRelease1'),
+                 first_inds=None):
         self.model_dir = model_dir
         self.devkit_dir = devkit_dir
         self.img_dir = os.path.join(self.devkit_dir, 'JPEGImages')
         self.gt_root = os.path.join(self.devkit_dir, 'SegmentationClassAug')
         self.model_name = model_name
+        self.first_inds = first_inds
 
         self.batch_size = batch_size
         self.size = size
@@ -85,6 +87,8 @@ class ADPCues:
                 for line in lines:
                     line = line.rstrip("\n") + '.jpg'
                     img_names.append(line)
+        if self.first_inds is not None:
+            img_names = img_names[:min(self.first_inds, len(img_names))]
         return img_names
 
     def build_model(self):

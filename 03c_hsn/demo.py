@@ -76,7 +76,7 @@ def segment(dataset, model_type, batch_size, set_name=None, should_saveimg=True,
     for fgbg_mode in fgbg_modes:
         mdl[fgbg_mode] = build_model(model_dir, sess_id)
         thresholds[fgbg_mode] = load_thresholds(model_dir, sess_id)
-        thresholds[fgbg_mode] = np.maximum(np.minimum(thresholds[fgbg_mode], 0), 1 / 3)
+        thresholds[fgbg_mode] = np.maximum(thresholds[fgbg_mode], 1 / 3)
         alpha[fgbg_mode], final_layer[fgbg_mode] = get_grad_cam_weights(mdl[fgbg_mode],
                                                                         np.zeros((1, img_size, img_size, 3)))
 
@@ -116,7 +116,8 @@ def segment(dataset, model_type, batch_size, set_name=None, should_saveimg=True,
         is_pass_threshold = {}
         for fgbg_mode in fgbg_modes:
             predicted_scores[fgbg_mode] = mdl[fgbg_mode].predict(img_batch_norm)
-            is_pass_threshold[fgbg_mode] = np.greater_equal(predicted_scores[fgbg_mode], thresholds[fgbg_mode])
+            is_pass_threshold[fgbg_mode] = np.logical_or(np.greater_equal(predicted_scores[fgbg_mode], thresholds[fgbg_mode]),
+                            predicted_scores[fgbg_mode] == np.max(predicted_scores[fgbg_mode], axis=1, keepdims=True))
         if is_verbose:
             print('\t\tGenerating patch confidence scores time: %0.5f seconds (%0.5f seconds / image)' %
                                                 (time.time() - start_time, (time.time() - start_time) / cur_batch_sz))
@@ -151,9 +152,9 @@ def segment(dataset, model_type, batch_size, set_name=None, should_saveimg=True,
         # FC-CRF
         start_time = time.time()
         if dataset == 'VOC2012':
-            dcrf_config = np.array([3 / 4, 3, 80 / 4, 13, 10, 10])  # test (since 2448 / 500 = 4.896 ~= 4)
+            dcrf_config = np.array([3 / 2, 3, 80 / 2, 13, 10, 10])  # test (since 2448 / 500 = 4.896 ~= 4)
         elif 'DeepGlobe' in dataset:
-            dcrf_config = np.array([3, 3, 80, 13, 10, 10])  # test
+            dcrf_config = np.array([3 / 4, 3, 80 / 4, 13, 10, 10])  # test
         Y_crf = dcrf_process(Y_gradcam, img_batch, dcrf_config)
         if is_verbose:
             print('\t\tCRF time: %0.5f seconds (%0.5f seconds / image)' % (time.time() - start_time,
@@ -455,17 +456,17 @@ def segment_adp(sess_id, model_type, batch_size, size, set_name, should_saveimg,
 
 if __name__ == "__main__":
     # ADP
-    segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
-    segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
-    segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
-    segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='VGG16', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
+    # segment(dataset='ADP', model_type='X1.7', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
 
     # VOC2012
-    segment(dataset='VOC2012', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
-    segment(dataset='VOC2012', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='VOC2012', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='VOC2012', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
 
     # DeepGlobe
-    segment(dataset='DeepGlobe_train75', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
-    segment(dataset='DeepGlobe_train75', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='DeepGlobe_train75', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
+    # segment(dataset='DeepGlobe_train75', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)
     segment(dataset='DeepGlobe_train37.5', model_type='VGG16', batch_size=16, should_saveimg=True, is_verbose=True)
     segment(dataset='DeepGlobe_train37.5', model_type='M7', batch_size=16, should_saveimg=True, is_verbose=True)

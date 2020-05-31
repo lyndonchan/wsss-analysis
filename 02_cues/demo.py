@@ -4,7 +4,7 @@ import skimage.io as imgio
 from keras import optimizers
 from keras.models import model_from_json
 import pandas as pd
-import time
+from tqdm import tqdm
 import math
 
 from utilities import *
@@ -18,16 +18,15 @@ OUT_ROOT = './out'
 TRAIN_CUES_ROOT = './cues_train'
 EVAL_CUES_ROOT = './cues_eval'
 
-def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_verbose=True):
+def gen_cues(dataset, model_type, batch_size, is_wpt=True, set_name=None, run_train=True, is_verbose=True, first_inds=None):
     """Generate weak segmentation cues for VOC2012 and DeepGlobe datasets, with redirect for ADP
 
     Parameters
     ----------
     dataset : str
-        The name of the dataset (i.e. 'ADP', 'VOC2012', 'DeepGlobe_train75', or 'DeepGlobe_train37.5')
+        The name of the dataset (i.e. 'ADP', 'VOC2012', 'DeepGlobe_train75', or 'DeepGlobe_balanced')
     model_type : str
-        The name of the model to use for generating cues (i.e. 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'X1.7', 'M7',
-        'M7bg', 'VGG16', or 'VGG16bg')
+    The name of the model to use for generating cues (i.e. 'X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg')
     batch_size : int
         The batch size (>0)
     set_name : str, optional
@@ -37,9 +36,14 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
     is_verbose : bool, optional
         Whether to activate message verbosity
     """
-    assert(dataset in ['ADP', 'VOC2012', 'DeepGlobe_train75', 'DeepGlobe_train37.5'])
-    assert(model_type in ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg'])
-    assert(os.path.exists(os.path.join(MODEL_ROOT, dataset + '_' + model_type)))
+    assert(dataset in ['ADP', 'VOC2012', 'DeepGlobe', 'DeepGlobe_balanced'])
+    assert(model_type in ['X1.7', 'M7', 'VGG16'])
+    assert(is_wpt in [True, False])
+    if is_wpt:
+        pt_str = '_wpt'
+    else:
+        pt_str = '_npt'
+    assert(os.path.exists(os.path.join(MODEL_ROOT, dataset + '_' + model_type + pt_str)))
     assert(batch_size > 0)
     assert(set_name in [None, 'tuning', 'segtest'])
     assert(type(run_train) is bool)
@@ -54,7 +58,8 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
         sess_id = dataset + '_' + model_type
     else:
         sess_id = dataset + '_' + set_name + '_' + model_type
-    model_dir = os.path.join(MODEL_ROOT, dataset + '_' + model_type)
+
+    model_dir = os.path.join(MODEL_ROOT, dataset + '_' + model_type + pt_str)
     train_cues_dir = os.path.join(TRAIN_CUES_ROOT, sess_id)
     eval_cues_dir = os.path.join(EVAL_CUES_ROOT, sess_id)
     if run_train:
@@ -74,11 +79,11 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
     if dataset == 'ADP':
         # Redirect to helper function if ADP
         if run_train:
-            gen_cues_adp(model_type, batch_size, img_size, train_cues_dir, set_name, is_verbose)
+            gen_cues_adp(model_type, is_wpt, batch_size, img_size, train_cues_dir, set_name, is_verbose, first_inds)
         else:
-            gen_cues_adp(model_type, batch_size, img_size, eval_cues_dir, set_name, is_verbose)
+            gen_cues_adp(model_type, is_wpt, batch_size, img_size, eval_cues_dir, set_name, is_verbose, first_inds)
         return
-    ds = Dataset(data_type=dataset, size=img_size, batch_size=batch_size)
+    ds = Dataset(data_type=dataset, size=img_size, batch_size=batch_size, first_inds=first_inds)
     if run_train:
         gen_curr = ds.set_gens[ds.sets[ds.is_evals.index(False)]]
     else:
@@ -86,13 +91,13 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
     img_names = gen_curr.filenames
 
     # Load and compile models
-    def load_model(model_dir, sess_id):
+    def load_model(model_dir, model_name):
         # Load model
-        arch_path = os.path.join(model_dir, sess_id + '.json')
+        arch_path = os.path.join(model_dir, model_name + '.json')
         with open(arch_path, 'r') as f:
             loaded_model_json = f.read()
         model = model_from_json(loaded_model_json)
-        weights_path = os.path.join(model_dir, sess_id + '.h5')
+        weights_path = os.path.join(model_dir, model_name + '.h5')
         model.load_weights(weights_path)
         # Compile model
         opt = optimizers.SGD(lr=0.0, momentum=0.0, decay=0.0, nesterov=True)
@@ -101,7 +106,7 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
         final_layer = find_final_layer(model)
         alpha = get_grad_cam_weights(model, final_layer, np.zeros((1, img_size, img_size, 3)))
         # Get thresholds
-        thresh_path = os.path.join(model_dir, sess_id + '.mat')
+        thresh_path = os.path.join(model_dir, model_name + '.mat')
         assert (os.path.exists(thresh_path))
         tmp = sio.loadmat(thresh_path)
         thresholds = tmp.get('optimalScoreThresh')
@@ -123,24 +128,17 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
         fgbg_modes = ['fg']
     for fgbg_mode in fgbg_modes:
         if fgbg_mode == 'fg':
-            fgbg_dir[fgbg_mode] = model_dir
-            fgbg_sess[fgbg_mode] = sess_id
+            fgbg_dir[fgbg_mode] = os.path.join(MODEL_ROOT, dataset + '_' + model_type + pt_str)
+            fgbg_sess[fgbg_mode] = sess_id + pt_str
         elif fgbg_mode == 'bg':
-            if 'fg' in sess_id:
-                fgbg_dir[fgbg_mode] = model_dir.replace('fg', 'bg')
-                fgbg_sess[fgbg_mode] = sess_id.replace('fg', 'bg')
-            else:
-                fgbg_dir[fgbg_mode] = model_dir.replace('fg', '') + 'bg'
-                fgbg_sess[fgbg_mode] = sess_id.replace('fg', '') + 'bg'
+            fgbg_dir[fgbg_mode] = os.path.join(MODEL_ROOT, dataset + '_' + model_type + 'bg' + pt_str)
+            fgbg_sess[fgbg_mode] = sess_id + 'bg' + pt_str
         model[fgbg_mode], alpha[fgbg_mode], final_layer[fgbg_mode], thresholds[fgbg_mode] = \
             load_model(fgbg_dir[fgbg_mode], fgbg_sess[fgbg_mode])
 
     # Process by batch
     n_batches = math.ceil(len(img_names) / batch_size)
-    for iter_batch in range(n_batches):
-        start_time = time.time()
-        if is_verbose:
-            print('\tBatch #%d of %d' % (iter_batch + 1, n_batches))
+    for iter_batch in tqdm(range(n_batches)):
         start_idx = iter_batch * batch_size
         end_idx = min(start_idx + batch_size - 1, len(img_names) - 1)
         cur_batch_sz = end_idx - start_idx + 1
@@ -168,19 +166,11 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
 
             # Generate Grad-CAM
             if fgbg_mode == 'fg':
-                fg_start_time = time.time()
                 H[fgbg_mode] = grad_cam(model[fgbg_mode], alpha[fgbg_mode], img_batch_norm, is_pass_threshold[fgbg_mode],
                                         final_layer[fgbg_mode], keep_inds, [img_size, img_size])
-                elapsed_time = time.time() - fg_start_time
-                if is_verbose:
-                    print('\t\tElapsed time (fg): %s seconds (%s seconds/image)' % (elapsed_time, elapsed_time / cur_batch_sz))
             elif fgbg_mode == 'bg':
-                bg_start_time = time.time()
                 H[fgbg_mode] = grad_cam(model[fgbg_mode], alpha[fgbg_mode], img_batch_norm, is_pass_threshold[fgbg_mode],
                                         final_layer[fgbg_mode], keep_inds, [img_size, img_size])
-                elapsed_time = time.time() - bg_start_time
-                if is_verbose:
-                    print('\t\tElapsed time (bg): %s seconds (%s seconds/image)' % (elapsed_time, elapsed_time / cur_batch_sz))
             H[fgbg_mode] = np.transpose(H[fgbg_mode], (0, 3, 1, 2))
             H[fgbg_mode] = resize_stack(H[fgbg_mode], (seed_size, seed_size))
 
@@ -194,9 +184,6 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
             localization_cues = get_fgbg_cues(localization_cues, H['fg'], H['bg'], class_inds, list_idx)
         elif 'DeepGlobe' in dataset:
             localization_cues = get_fg_cues(localization_cues, H['fg'], class_inds, list_idx)
-        elapsed_time = time.time() - start_time
-        if is_verbose:
-            print('\t\tElapsed time: %s seconds (%s seconds/image)' % (elapsed_time, elapsed_time / cur_batch_sz))
     if is_verbose:
         print('Saving localization cues')
     if run_train:
@@ -206,14 +193,13 @@ def gen_cues(dataset, model_type, batch_size, set_name=None, run_train=True, is_
         # Validation set localization cues (for evaluation only)
         pickle.dump(localization_cues, open(os.path.join(eval_cues_dir, 'localization_cues_val.pickle'), 'wb'))
 
-def gen_cues_adp(model_type, batch_size, size, cues_dir, set_name, is_verbose):
+def gen_cues_adp(model_type, is_wpt, batch_size, size, cues_dir, set_name, is_verbose, first_inds):
     """Generate weak segmentation cues for ADP (helper function)
 
     Parameters
     ----------
     model_type : str
-        The name of the model to use for generating cues (i.e. 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'X1.7', 'M7',
-        'M7bg', 'VGG16', or 'VGG16bg')
+        The name of the model to use for generating cues (i.e. 'X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg')
     batch_size : int
         The batch size (>0)
     size : int
@@ -225,7 +211,11 @@ def gen_cues_adp(model_type, batch_size, size, cues_dir, set_name, is_verbose):
     is_verbose : bool, optional
         Whether to activate message verbosity
     """
-    ac = ADPCues('ADP_' + model_type, batch_size, size, model_dir=MODEL_ROOT)
+    if is_wpt:
+        pt_str = '_wpt'
+    else:
+        pt_str = '_npt'
+    ac = ADPCues('ADP_' + model_type + pt_str, batch_size, size, model_dir=MODEL_ROOT, first_inds=first_inds)
     seed_size = 41
 
     # Load network and thresholds
@@ -247,10 +237,7 @@ def gen_cues_adp(model_type, batch_size, size, cues_dir, set_name, is_verbose):
 
     # Process images in batches
     n_batches = len(img_names) // batch_size + 1
-    for iter_batch in range(n_batches):
-        start_time = time.time()
-        if is_verbose:
-            print('\tBatch #%d of %d' % (iter_batch + 1, n_batches))
+    for iter_batch in tqdm(range(n_batches)):
         start_idx = iter_batch * batch_size
         end_idx = min(start_idx + batch_size - 1, len(img_names) - 1)
         cur_batch_sz = end_idx - start_idx + 1
@@ -290,25 +277,22 @@ def gen_cues_adp(model_type, batch_size, size, cues_dir, set_name, is_verbose):
 
             # Update localization cues
             ac.update_cues(seeds[htt_class], class_inds, htt_class, list(range(start_idx, end_idx + 1)))
-        elapsed_time = time.time() - start_time
-        if is_verbose:
-            print('\t\tElapsed time: %s seconds (%s seconds/image)' % (elapsed_time, elapsed_time / cur_batch_sz))
     # Save localization cues
     if is_verbose:
         print('\tSaving localization cues')
     pickle.dump(ac.cues['morph'], open(os.path.join(cues_dirs['morph'], 'localization_cues.pickle'), 'wb'))
     pickle.dump(ac.cues['func'], open(os.path.join(cues_dirs['func'], 'localization_cues.pickle'), 'wb'))
 
-def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, should_saveimg=True, is_verbose=True):
+def eval_cues(dataset, model_type, batch_size, is_wpt=True, set_name=None, run_train=False, should_saveimg=True,
+              is_verbose=True, first_inds=None):
     """Evaluate weak segmentation cues for VOC2012 and DeepGlobe datasets, with redirect for ADP
 
     Parameters
     ----------
     dataset : str
-        The name of the dataset (i.e. 'ADP', 'VOC2012', 'DeepGlobe_train75', or 'DeepGlobe_train37.5')
+        The name of the dataset (i.e. 'ADP', 'VOC2012', 'DeepGlobe', or 'DeepGlobe_balanced')
     model_type : str
-        The name of the model to use for generating cues (i.e. 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'X1.7', 'M7',
-        'M7bg', 'VGG16', or 'VGG16bg')
+        The name of the model to use for generating cues (i.e. 'X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg')
     batch_size : int
         The batch size (>0)
     set_name : str, optional
@@ -320,9 +304,14 @@ def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, s
     is_verbose : bool, optional
         Whether to activate message verbosity
     """
-    assert(dataset in ['ADP', 'VOC2012', 'DeepGlobe_train75', 'DeepGlobe_train37.5'])
-    assert(model_type in ['M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg'])
-    assert(os.path.exists(os.path.join(MODEL_ROOT, dataset + '_' + model_type)))
+    assert(dataset in ['ADP', 'VOC2012', 'DeepGlobe', 'DeepGlobe_balanced'])
+    assert(model_type in ['X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg'])
+    assert(is_wpt in [True, False])
+    if is_wpt:
+        pt_str = '_wpt'
+    else:
+        pt_str = '_npt'
+    assert(os.path.exists(os.path.join(MODEL_ROOT, dataset + '_' + model_type + pt_str)))
     assert(batch_size > 0)
     assert(set_name in [None, 'tuning', 'segtest'])
     assert(type(run_train) is bool)
@@ -356,10 +345,10 @@ def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, s
         print('\tLoading data')
     if dataset == 'ADP':
         # Redirect to helper function if ADP
-        eval_cues_adp(model_type, sess_id, batch_size, img_size, set_name, should_saveimg, is_verbose)
+        eval_cues_adp(model_type, sess_id, is_wpt, batch_size, img_size, set_name, should_saveimg, is_verbose, first_inds)
         return
     makedir_if_nexist([eval_cues_dir])
-    ds = Dataset(data_type=dataset, size=img_size, batch_size=batch_size)
+    ds = Dataset(data_type=dataset, size=img_size, batch_size=batch_size, first_inds=first_inds)
     eval_set = ds.sets[ds.is_evals.index(True)]
     gen_eval = ds.set_gens[eval_set]
     colours = get_colours(dataset)
@@ -368,7 +357,7 @@ def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, s
     cues_path = os.path.join(eval_cues_dir, 'localization_cues_val.pickle')
     if not os.path.exists(cues_path):
         # Generate first if not already existing
-        gen_cues(dataset, model_type, batch_size, run_train=False, is_verbose=is_verbose)
+        gen_cues(dataset, model_type, batch_size, run_train=False, is_verbose=is_verbose, first_inds=first_inds)
     localization_cues = pickle.load(open(cues_path, "rb"), encoding="iso-8859-1")
 
     gt_dir = os.path.join(os.path.dirname(gen_eval.directory), 'SegmentationClassAug')
@@ -385,10 +374,7 @@ def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, s
     unions = np.zeros((len(colours)))
 
     # Evaluate one image at a time
-    for iter_file, filename in enumerate(gen_eval.filenames):
-        if is_verbose:
-            print('\tImage #%d of %d' % (iter_file+1, len(gen_eval.filenames)))
-        start_time = time.time()
+    for iter_file, filename in enumerate(tqdm(gen_eval.filenames)):
         if dataset == 'VOC2012':
             # Load GT segmentation
             gt_filepath = os.path.join(gt_dir, filename.replace('.jpg', '.png'))
@@ -440,11 +426,10 @@ def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, s
                 orig_img = cv2.resize(orig_img, (orig_img.shape[0] // 4, orig_img.shape[1] // 4))
                 pred_segmask = cv2.resize(pred_segmask, (pred_segmask.shape[0] // 4, pred_segmask.shape[1] // 4),
                                           interpolation=cv2.INTER_NEAREST)
-            imgio.imsave(os.path.join(out_dir, filename.replace('.jpg', '') + '.png'), pred_segmask / 256.0)
+            imgio.imsave(os.path.join(out_dir, filename.replace('.jpg', '') + '.png'), np.uint8(pred_segmask),
+                         check_contrast=False)
             imgio.imsave(os.path.join(out_dir, filename.replace('.jpg', '') + '_overlay.png'),
-                         (1 - OVERLAY_R) * orig_img / 256.0 + OVERLAY_R * pred_segmask / 256.0)
-        if is_verbose:
-            print('\t\tElapsed time (s): %s' % (time.time() - start_time))
+                         np.uint8((1 - OVERLAY_R) * orig_img + OVERLAY_R * pred_segmask), check_contrast=False)
     # Calculate mIoU and save to .xlsx metrics file
     mIoU = np.mean(intersects / (unions + 1e-7))
     df = pd.DataFrame({'Class': seg_class_names + ['Mean'], 'IoU': list(intersects / (unions + 1e-7)) + [mIoU]},
@@ -452,14 +437,13 @@ def eval_cues(dataset, model_type, batch_size, set_name=None, run_train=False, s
     xlsx_path = os.path.join(eval_cues_dir, 'metrics_' + sess_id + '_' + eval_set + '.xlsx')
     df.to_excel(xlsx_path)
 
-def eval_cues_adp(model_type, sess_id, batch_size, size, set_name, should_saveimg, is_verbose):
+def eval_cues_adp(model_type, sess_id, is_wpt, batch_size, size, set_name, should_saveimg, is_verbose, first_inds):
     """Evaluate weak segmentation cues for ADP (helper function)
 
     Parameters
     ----------
     model_type : str
-        The name of the model to use for generating cues (i.e. 'M1', 'M2', 'M3', 'M4', 'M5', 'M6', 'M7', 'X1.7', 'M7',
-        'M7bg', 'VGG16', or 'VGG16bg')
+        The name of the model to use for generating cues (i.e. 'X1.7', 'M7', 'M7bg', 'VGG16', 'VGG16bg')
     sess_id : str
         The identifying string for the current session
     batch_size : int
@@ -473,7 +457,11 @@ def eval_cues_adp(model_type, sess_id, batch_size, size, set_name, should_saveim
     is_verbose : bool, optional
         Whether to activate message verbosity
     """
-    ac = ADPCues('ADP_' + model_type, batch_size, size, model_dir=MODEL_ROOT)
+    if is_wpt:
+        pt_str = '_wpt'
+    else:
+        pt_str = '_npt'
+    ac = ADPCues('ADP_' + model_type + pt_str, batch_size, size, model_dir=MODEL_ROOT, first_inds=first_inds)
     seed_size = 41
     OVERLAY_R = 0.75
 
@@ -497,10 +485,7 @@ def eval_cues_adp(model_type, sess_id, batch_size, size, set_name, should_saveim
 
     # Process images in batches
     n_batches = len(img_names) // ac.batch_size + 1
-    for iter_batch in range(n_batches):
-        start_time = time.time()
-        if is_verbose:
-            print('\tBatch #%d of %d' % (iter_batch+1, n_batches))
+    for iter_batch in tqdm(range(n_batches)):
         start_idx = iter_batch * ac.batch_size
         end_idx = min(start_idx + ac.batch_size - 1, len(img_names) - 1)
         cur_batch_sz = end_idx - start_idx + 1
@@ -563,12 +548,9 @@ def eval_cues_adp(model_type, sess_id, batch_size, size, set_name, should_saveim
                 # Save debugging images to file
                 if should_saveimg:
                     imgio.imsave(os.path.join(out_dirs[htt_class], os.path.splitext(img_names[start_idx+j])[0] + '.png'),
-                                 pred_segmask / 256.0)
+                                 np.uint8(pred_segmask), check_contrast=False)
                     imgio.imsave(os.path.join(out_dirs[htt_class], os.path.splitext(img_names[start_idx+j])[0] + '_overlay.png'),
-                                 (1-OVERLAY_R) * img_batch[j] / 256.0 + OVERLAY_R * pred_segmask / 256.0)
-        elapsed_time = time.time() - start_time
-        if is_verbose:
-            print('\t\tElapsed time: %s seconds (%s seconds/image)' % (elapsed_time, elapsed_time / cur_batch_sz))
+                                 np.uint8((1-OVERLAY_R) * img_batch[j] + OVERLAY_R * pred_segmask), check_contrast=False)
     # Calculate IoU, mIoU metrics
     iou = {}
     miou = {}
@@ -588,25 +570,25 @@ def eval_cues_adp(model_type, sess_id, batch_size, size, set_name, should_saveim
 
 if __name__ == "__main__":
     # ADP
-    gen_cues(dataset='ADP', model_type='VGG16', batch_size=16, is_verbose=True)
-    eval_cues(dataset='ADP', model_type='VGG16', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
-    eval_cues(dataset='ADP', model_type='VGG16', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
-    gen_cues(dataset='ADP', model_type='X1.7', batch_size=16, should_saveimg=True, is_verbose=True)
-    eval_cues(dataset='ADP', model_type='X1.7', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True)
-    eval_cues(dataset='ADP', model_type='X1.7', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True)
+    # gen_cues(dataset='ADP', model_type='VGG16', batch_size=16, is_verbose=True, first_inds=100)
+    # eval_cues(dataset='ADP', model_type='VGG16', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True, first_inds=100)
+    # eval_cues(dataset='ADP', model_type='VGG16', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True, first_inds=100)
+    # gen_cues(dataset='ADP', model_type='X1.7', batch_size=16, is_verbose=True, first_inds=100)
+    # eval_cues(dataset='ADP', model_type='X1.7', batch_size=16, set_name='tuning', should_saveimg=True, is_verbose=True, first_inds=100)
+    # eval_cues(dataset='ADP', model_type='X1.7', batch_size=16, set_name='segtest', should_saveimg=True, is_verbose=True, first_inds=100)
 
     # PASCAL VOC 2012
-    gen_cues(dataset='VOC2012', model_type='VGG16', batch_size=8, is_verbose=True)
-    eval_cues(dataset='VOC2012', model_type='VGG16', batch_size=8, should_saveimg=True, is_verbose=True)
-    gen_cues(dataset='VOC2012', model_type='M7', batch_size=8, is_verbose=True)
-    eval_cues(dataset='VOC2012', model_type='M7', batch_size=8, should_saveimg=True, is_verbose=True)
+    gen_cues(dataset='VOC2012', model_type='VGG16', batch_size=8, is_verbose=True, first_inds=100)
+    eval_cues(dataset='VOC2012', model_type='VGG16', batch_size=8, should_saveimg=True, is_verbose=True, first_inds=100)
+    gen_cues(dataset='VOC2012', model_type='M7', batch_size=8, is_verbose=True, first_inds=100)
+    eval_cues(dataset='VOC2012', model_type='M7', batch_size=8, should_saveimg=True, is_verbose=True, first_inds=100)
 
     # DeepGlobe
-    gen_cues(dataset='DeepGlobe_train75', model_type='VGG16', batch_size=8, is_verbose=True)
-    eval_cues(dataset='DeepGlobe_train75', model_type='VGG16', batch_size=8, should_saveimg=True,  is_verbose=True)
-    gen_cues(dataset='DeepGlobe_train75', model_type='M7', batch_size=8, is_verbose=True)
-    eval_cues(dataset='DeepGlobe_train75', model_type='M7', batch_size=8, should_saveimg=True, is_verbose=True)
-    gen_cues(dataset='DeepGlobe_train37.5', model_type='VGG16', batch_size=8, is_verbose=True)
-    eval_cues(dataset='DeepGlobe_train37.5', model_type='VGG16', batch_size=8, should_saveimg=True, is_verbose=True)
-    gen_cues(dataset='DeepGlobe_train37.5', model_type='M7', batch_size=8, is_verbose=True)
-    eval_cues(dataset='DeepGlobe_train37.5', model_type='M7', batch_size=8, should_saveimg=True, is_verbose=True)
+    gen_cues(dataset='DeepGlobe', model_type='VGG16', batch_size=8, is_verbose=True, first_inds=100)
+    eval_cues(dataset='DeepGlobe', model_type='VGG16', batch_size=8, should_saveimg=True,  is_verbose=True, first_inds=100)
+    gen_cues(dataset='DeepGlobe', model_type='M7', batch_size=8, is_verbose=True, first_inds=100)
+    eval_cues(dataset='DeepGlobe', model_type='M7', batch_size=8, should_saveimg=True, is_verbose=True, first_inds=100)
+    gen_cues(dataset='DeepGlobe_balanced', model_type='VGG16', batch_size=8, is_verbose=True, first_inds=100)
+    eval_cues(dataset='DeepGlobe_balanced', model_type='VGG16', batch_size=8, should_saveimg=True, is_verbose=True, first_inds=100)
+    gen_cues(dataset='DeepGlobe_balanced', model_type='M7', batch_size=8, is_verbose=True, first_inds=100)
+    eval_cues(dataset='DeepGlobe_balanced', model_type='M7', batch_size=8, should_saveimg=True, is_verbose=True, first_inds=100)

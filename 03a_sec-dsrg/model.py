@@ -22,20 +22,55 @@ class Model():
     """Wrapper class for SEC and DSRG WSSS methods"""
 
     def __init__(self, args):
+        self.task = args.task
         self.method = args.method
         self.dataset = args.dataset
-        self.phase = 'predict'
         self.seed_type = args.seed
-        if self.dataset in ['ADP-morph', 'ADP-func']:
-            self.setname = args.setname
-            self.sess_id = self.dataset + '_' + self.setname + '_' + self.seed_type
-        else:
-            self.sess_id = self.dataset + '_' + self.seed_type
         self.h, self.w = (321, 321)
         self.seed_size = 41
+        self.weight_decay = 5e-4
+        self.base_lr = 1e-4
+        self.lr_decay = 0.5
+        self.lr_step = 4
+        self.momentum = 0.9
+        if self.task == 'train':
+            self.max_epochs = args.epochs
+        self.threshold = args.threshold
         self.batch_size = args.batchsize
         self.should_saveimg = args.saveimg
+        self.should_savesess = args.savesess
         self.verbose = args.verbose
+
+        if self.dataset in ['ADP-morph', 'ADP-func']:
+            self.eval_setname = args.eval_setname
+        if self.task == 'predict':
+            if self.dataset in ['ADP-morph', 'ADP-func']:
+                self.phase = self.eval_setname
+                self.sess_id = self.dataset + '_' + self.eval_setname + '_' + self.seed_type + '_' + str(self.threshold)
+            elif self.dataset == 'VOC2012':
+                self.phase = 'val'
+                self.sess_id = self.dataset + '_val_' + self.seed_type + '_' + str(self.threshold)
+            elif 'DeepGlobe' in self.dataset:
+                self.phase = 'test'
+                self.sess_id = self.dataset + '_test_' + self.seed_type + '_' + str(self.threshold)
+        elif self.task == 'train':
+            self.phase = 'train'
+            self.sess_id = self.dataset + '_train_' + self.seed_type + '_' + str(self.threshold)
+        # paths
+        self.save_dir = os.path.join(MODEL_WSSS_ROOT, self.method, self.dataset + '_' + self.seed_type)
+        self.out_dir = os.path.join('out', self.method, self.sess_id)
+        self.eval_dir = os.path.join('eval', self.method, self.sess_id)
+        new_dirs = [self.save_dir, self.eval_dir]
+        if self.task == 'train':
+            self.log_dir = os.path.join('log', self.method, self.sess_id)
+            new_dirs.append(self.log_dir)
+            if self.should_saveimg:
+                new_dirs.append(self.out_dir)
+        else:
+            new_dirs.append(self.out_dir)
+        for pth in new_dirs:
+            if not os.path.exists(pth):
+                os.makedirs(pth)
 
         self.accum_num = 1
         self.pool = multiprocessing.Pool()
@@ -43,14 +78,6 @@ class Model():
         self.saver = {}
 
         self.l2loss = {"total": 0}
-
-        # paths
-        self.save_dir = os.path.join(MODEL_WSSS_ROOT, self.method, self.dataset + '_' + self.seed_type)
-        self.out_dir = os.path.join('out', self.method, self.sess_id)
-        self.eval_dir = os.path.join('eval', self.method, self.sess_id)
-        for pth in [self.out_dir, self.eval_dir]:
-            if not os.path.exists(pth):
-                os.makedirs(pth)
 
         if self.method == 'DSRG':
             self.init_model_path = os.path.join(MODEL_WSSS_ROOT, self.method, 'vgg16_deeplab_aspp.npy')
@@ -64,7 +91,10 @@ class Model():
             self.img_mean = np.array([208.8502, 163.2828, 207.1458])
             self.dataset_dir = os.path.join(database_dir, 'ADPdevkit', 'ADPRelease1')
             self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
-            self.run_categories = [self.setname] # self.run_categories \in ['tuning', 'segtest']
+            if self.task == 'train':
+                self.run_categories = ['tuning', 'segtest']
+            elif self.task == 'predict':
+                self.run_categories = [self.eval_setname]
             self.class_names = ['Background', 'E.M.S', 'E.M.U', 'E.M.O', 'E.T.S', 'E.T.U', 'E.T.O', 'E.P', 'C.D.I',
                                 'C.D.R', 'C.L', 'H.E', 'H.K', 'H.Y', 'S.M.C', 'S.M.S', 'S.E', 'S.C.H', 'S.R', 'A.W',
                                 'A.B', 'A.M', 'M.M', 'M.K', 'N.P', 'N.R.B', 'N.R.A', 'N.G.M', 'N.G.W']
@@ -80,13 +110,16 @@ class Model():
             self.img_mean = np.array([208.8502, 163.2828, 207.1458])
             self.dataset_dir = os.path.join(database_dir, 'ADPdevkit', 'ADPRelease1')
             self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
-            self.run_categories = [self.setname]  # self.run_categories = ['tuning', 'segtest']
+            if self.task == 'train':
+                self.run_categories = ['tuning', 'segtest']
+            elif self.task == 'predict':
+                self.run_categories = [self.eval_setname]
             self.class_names = ['Background', 'Other', 'G.O', 'G.N', 'T']
             self.label2rgb_colors = np.array([(255, 255, 255), (3, 155, 229), (0, 0, 128), (0, 128, 0), (173, 20, 87)])
         elif self.dataset == 'VOC2012':
             self.num_classes = 21
             self.img_mean = np.array([104.00698793, 116.66876762, 122.67891434])
-            self.dataset_dir = os.path.join(database_dir, 'VOCdevkit', 'VOC2012')
+            self.dataset_dir = os.path.join(database_dir, 'VOCdevkit', 'VOC_trainaug_val')
             self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
             self.run_categories = ['val']
             self.class_names = ['__background__', 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat',
@@ -137,7 +170,7 @@ class Model():
         """
         # cues_labels = [self.cues_data[x] for i, x in enumerate(self.cues_data.keys()) if '_labels' in x]
         # [i for i,x in enumerate(cues_labels) if 32 in x]
-        cues_root = os.path.join(os.path.dirname(os.getcwd()), '01_weak_cues')
+        cues_root = os.path.join(os.path.dirname(os.getcwd()), '02_cues')
         data_f = {}
         data_len = {}
         for phase in phases:
@@ -351,6 +384,33 @@ class Model():
         label = imgco.label2rgb(label, colors=colors, bg_label=ignore_label, bg_color=ignore_color)
         return label.astype(np.uint8)
 
+    def optimize(self):
+        for val_category in self.run_categories[1:]:
+            self.model.metric["miou_" + val_category] = tf.Variable(0.0, trainable=False)
+        self.model.loss["norm"] = self.model.getloss()
+        self.model.loss["l2"] = sum([tf.nn.l2_loss(self.model.weights[layer][0]) for layer in self.model.weights])
+        self.model.loss["total"] = self.model.loss["norm"]+ self.weight_decay * self.model.loss["l2"]
+        self.model.net["lr"] = tf.Variable(self.base_lr, trainable=False)
+        opt = tf.train.MomentumOptimizer(self.model.net["lr"], self.momentum)
+        gradients = opt.compute_gradients(self.model.loss["total"])
+        self.model.net["accum_gradient"] = []
+        self.model.net["accum_gradient_accum"] = []
+        new_gradients = []
+        for (g,v) in gradients:
+            if g is None: continue
+            if v in self.model.lr_2_list:
+                g = 2*g
+            if v in self.model.lr_10_list:
+                g = 10*g
+            if v in self.model.lr_20_list:
+                g = 20*g
+            self.model.net["accum_gradient"].append(tf.Variable(tf.zeros_like(g),trainable=False))
+            self.model.net["accum_gradient_accum"].append(self.model.net["accum_gradient"][-1].assign_add( g/self.accum_num, use_locking=True))
+            new_gradients.append((self.model.net["accum_gradient"][-1],v))
+
+        self.model.net["accum_gradient_clean"] = [g.assign(tf.zeros_like(g)) for g in self.model.net["accum_gradient"]]
+        self.model.net["accum_gradient_update"]  = opt.apply_gradients(new_gradients)
+
     def get_latest_checkpoint(self):
         """Find the filepath to the saved model checkpoint"""
         if 'final-0.index' in os.listdir(self.save_dir):
@@ -362,7 +422,7 @@ class Model():
         latest_checkpoint = os.path.join(self.save_dir, 'epoch-' + str(max(all_checkpoint_inds)))
         return latest_checkpoint
 
-    def restore_from_model(self,saver,model_path):
+    def restore_from_model(self, saver, model_path, checkpoint=False):
         """Restore model from saved checkpoint
 
         Parameters
@@ -372,14 +432,127 @@ class Model():
         model_path : str
             The file path to the saved checkpoint
         """
+
         assert self.sess is not None
-        saver.restore(self.sess, model_path)
+        if checkpoint is True:
+            ckpt = tf.train.get_checkpoint_state(model_path)
+            saver.restore(self.sess, ckpt.model_checkpoint_path)
+        else:
+            saver.restore(self.sess, model_path)
+
+    def train(self):
+        tf.reset_default_graph()
+        # self.sess = tf.Session()
+        config = tf.ConfigProto()
+        config.gpu_options.per_process_gpu_memory_fraction = 1
+        config.gpu_options.allow_growth = True
+        self.sess = tf.Session(config=config)
+
+        data_x,data_label,data_cues,id_of_image,iterator_train = self.next_batch(category="train", max_epochs=-1)
+        data_x_val = {}
+        data_label_val = {}
+        id_of_image_val = {}
+        iterator_val = {}
+        for val_category in self.run_categories[1:]:
+            data_x_val[val_category], data_label_val[val_category], id_of_image_val[val_category], \
+            iterator_val[val_category] = self.next_batch(category=val_category, max_epochs=1)
+        self.model.build(net_input=data_x, net_label=data_label, net_cues=data_cues, net_id=id_of_image, phase='train')
+        self.optimize()
+        self.saver["epoch"] = tf.train.Saver(max_to_keep=self.max_epochs,var_list=self.model.trainable_list)
+        self.saver["final"] = tf.train.Saver(max_to_keep=1,var_list=self.model.trainable_list)
+
+        iterations_per_epoch_train = self.data_len['train'] // self.batch_size  # self.data.get_data_len()
+
+        with self.sess.as_default():
+            self.sess.run(tf.global_variables_initializer())
+            self.sess.run(tf.local_variables_initializer())
+            self.sess.run(iterator_train.initializer)
+            for val_category in self.run_categories[1:]:
+                self.sess.run(iterator_val[val_category].initializer)
+            tf.summary.scalar("seed_loss", self.model.loss["seed"])
+            tf.summary.scalar("constrain_loss", self.model.loss["constrain"])
+            tf.summary.scalar("total_loss", self.model.loss["total"])
+            tf.summary.scalar("loss", self.model.loss["norm"])
+            for val_category in self.run_categories[1:]:
+                tf.summary.scalar("miou_" + val_category, self.model.metric["miou_" + val_category])
+            tf.summary.scalar("lr", self.model.net["lr"])
+            tf.summary.scalar("epoch", self.model.net["epoch"])
+            merged_summary_op = tf.summary.merge_all()
+
+            summary_writer = tf.summary.FileWriter(self.log_dir, graph=tf.get_default_graph())
+
+            # Resume training from latest checkpoint if it exists
+            latest_ckpt = self.get_latest_checkpoint()
+            if latest_ckpt is not None:
+                print('Loading model from previous checkpoint %s' % latest_ckpt)
+                print("before l2 loss:%f" % self.sess.run(self.model.loss["l2"]))
+                self.restore_from_model(self.saver["epoch"], latest_ckpt, checkpoint=False)
+                print("after l2 loss:%f" % self.sess.run(self.model.loss["l2"]))
+                i = int(os.path.basename(latest_ckpt).split('-')[-1])
+                epoch = i / iterations_per_epoch_train
+            # Start training from scratch if no previous checkpoint
+            else:
+                epoch, i = 0.0, 0
+                self.sess.run(self.model.net["accum_gradient_clean"])
+            seed_losses, constrain_losses, total_losses = [], [], []
+
+            while epoch < self.max_epochs:
+                start_time = time.time()
+                lr = self.base_lr * self.lr_decay ** (epoch // self.lr_step)
+                if i % iterations_per_epoch_train == 0:
+                    self.sess.run(tf.assign(self.model.net["lr"], lr))
+
+                self.sess.run(self.model.net["accum_gradient_accum"])
+                seed_l, constrain_l, loss, lr = self.sess.run(
+                    [self.model.loss["seed"], self.model.loss["constrain"], self.model.loss["total"], self.model.net["lr"]])
+                seed_losses.append(seed_l), constrain_losses.append(constrain_l), total_losses.append(loss)
+
+                if i % self.accum_num == self.accum_num - 1:
+                    self.sess.run(self.model.net["accum_gradient_update"])
+                    self.sess.run(self.model.net["accum_gradient_clean"])
+                if i % 200 == 0:
+                    # Get small training losses
+                    dbg_s = np.mean(np.array(seed_losses))
+                    dbg_c = np.mean(np.array(constrain_losses))
+                    dbg_l = np.mean(np.array(total_losses))
+                    seed_losses, constrain_losses, total_losses = [], [], []
+                    print('epoch=%f | seed_loss=%f, constrain_loss=%f, total_loss=%f' % (epoch, dbg_s, dbg_c, dbg_l))
+                    # Create save image directory if non-existent
+                    if self.should_saveimg:
+                        saveimg_dir = os.path.join(self.out_dir, 'train', str(i))
+                        if not os.path.exists(saveimg_dir):
+                            os.makedirs(saveimg_dir)
+                    else:
+                        saveimg_dir = None
+                    # Get validation metric
+                    for val_category in self.run_categories[1:]:
+                        miou_val = self.eval_miou(data_x_val[val_category], id_of_image_val[val_category],
+                                                  data_label_val[val_category], self.model.net['input'],
+                                                  self.model.net['rescale_output'], self.model.net['drop_prob'],
+                                                  val_category, saveimg_dir)
+                        self.sess.run(tf.assign(self.model.metric["miou_" + val_category], miou_val))
+                        self.sess.run(iterator_val[val_category].initializer)
+                        print('mIoU [%s] = %f' % (val_category, miou_val))
+                    self.sess.run(tf.assign(self.model.net["epoch"], epoch))
+                    # Update Tensorboard
+                    summary = self.sess.run(merged_summary_op)
+                    summary_writer.add_summary(summary, i)
+                i+=1
+                epoch = i / iterations_per_epoch_train
+                print('Image run-time: %f' % ((time.time() - start_time) / self.batch_size))
+
+                if self.should_savesess and (i % iterations_per_epoch_train == 0):
+                    self.saver["epoch"].save(self.sess, os.path.join(self.save_dir, "epoch"), global_step=i)
+            self.saver["final"].save(self.sess,os.path.join(self.save_dir, "final"), global_step=0)
+            self.pool.close()
+            self.pool.join()
 
     def predict(self):
         """Predict the segmentation for the requested dataset"""
         tf.reset_default_graph()
         config = tf.ConfigProto()
         config.gpu_options.per_process_gpu_memory_fraction = 1.0
+        config.gpu_options.allow_growth = True
         self.sess = tf.Session(config=config)
         data_x = {}
         data_label = {}
@@ -432,17 +605,17 @@ class Model():
             featmap = cv2.resize(featmap, (featmap.shape[0] // 4, featmap.shape[1] // 4),
                                  interpolation=cv2.INTER_NEAREST)
         if output_dir is not None:
-            imgio.imsave(os.path.join(output_dir, "%s_img.png" % id_), img / 256.0)
+            imgio.imsave(os.path.join(output_dir, "%s_img.png" % id_), np.uint8(img))
             if should_overlay:
                 overlay_r = 0.75
                 imgio.imsave(os.path.join(output_dir, "%s_output.png" % id_),
-                             (1-overlay_r) * img / 256.0 + overlay_r *
-                             self.label2rgb(np.argmax(featmap, axis=2), category_num) / 256.0)
+                             np.uint8((1 - overlay_r) * img + overlay_r *
+                             self.label2rgb(np.argmax(featmap, axis=2), category_num)))
             else:
                 imgio.imsave(os.path.join(output_dir, "%s_output.png" % id_),
-                             self.label2rgb(np.argmax(featmap, axis=2), category_num))
-            imgio.imsave(os.path.join(output_dir, "%s_pred.png" % id_), self.label2rgb(np.argmax(featmap, axis=2),
-                                                                                       category_num))
+                             np.uint8(self.label2rgb(np.argmax(featmap, axis=2), category_num)))
+            imgio.imsave(os.path.join(output_dir, "%s_pred.png" % id_), np.uint8(self.label2rgb(np.argmax(featmap, axis=2),
+                                                                                       category_num)))
 
     def eval_miou(self, data, id, gt, input, layer, dropout, val_category, saveimg_dir, should_overlay=False, is_eval=False):
         """Convert index labels to RGB colour images
@@ -487,7 +660,7 @@ class Model():
                 # Read the input images, filenames, and GT segmentations in current batch
                 img,id_,gt_ = self.sess.run([data,id,gt])
                 # Generate predicted segmentation in current batch
-                output_scale = self.sess.run(layer,feed_dict={input:img, dropout:0.0})
+                output_scale = self.sess.run(layer, feed_dict={input: img, dropout: 0.0})
                 img_ids += list(id_)
                 gt_ = gt_[:, :, :, :3]
                 i += 1
@@ -567,9 +740,13 @@ class Model():
             print("Exception info:%s" % traceback.format_exc())
         # Evaluate mIoU and save to .xlsx file
         mIoU = np.mean(intersect / (union + 1e-7))
+        precision = intersect / (gt_count + 1e-5)
+        recall = intersect / (pred_count + 1e-5)
         if is_eval:
-            df = pd.DataFrame({'Class': self.class_names + ['Mean'], 'IoU': list(intersect / (union + 1e-7)) + [mIoU]},
-                              columns=['Class', 'IoU'])
+            df = pd.DataFrame({'Class': self.class_names + ['Mean'], 'IoU': list(intersect / (union + 1e-7)) + [mIoU],
+                               'Precision': list(precision) + [np.mean(precision)],
+                               'Recall': list(recall) + [np.mean(recall)]},
+                              columns=['Class', 'IoU', 'Precision', 'Recall'])
             xlsx_path = os.path.join(self.eval_dir, 'metrics_' + self.dataset + '_' + val_category + '-' + self.seed_type + '.xlsx')
             df.to_excel(xlsx_path)
         # Save confusion matrix for all classes to .png file

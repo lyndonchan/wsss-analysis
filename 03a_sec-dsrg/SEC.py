@@ -15,19 +15,23 @@ class SEC():
         self.img_mean = self.config.get('img_mean')
         self.seed_size = self.config.get('seed_size')
         self.init_model_path = self.config.get('init_model_path', None)
-        if self.dataset == 'VOC2012' or 'DeepGlobe' in self.dataset:
-            self.crf_config_train = {"g_sxy":3/12,"g_compat":3,"bi_sxy":80/12,"bi_srgb":13,"bi_compat":10,"iterations":5}
-            self.crf_config_test = {"g_sxy":3,"g_compat":3,"bi_sxy":80,"bi_srgb":13,"bi_compat":10,"iterations":10}
-        elif self.dataset == 'ADP-morph':
+        if self.dataset in ['ADP-morph', 'ADP-func', 'VOC2012']:
             self.crf_config_train = {"g_sxy": 3 / 12, "g_compat": 3, "bi_sxy": 80 / 12, "bi_srgb": 13, "bi_compat": 10,
+                               "iterations": 5}
+            if self.dataset == 'VOC2012':
+                self.crf_config_test = {"g_sxy": 3, "g_compat": 3, "bi_sxy": 80, "bi_srgb": 13, "bi_compat": 10,
+                                        "iterations": 10}
+            elif self.dataset == 'ADP-morph':
+                self.crf_config_test = {"g_sxy": 1, "g_compat": 20, "bi_sxy": 10, "bi_srgb": 40, "bi_compat": 50,
+                                        "iterations": 5}
+            elif self.dataset == 'ADP-func':
+                self.crf_config_test = {"g_sxy": 3, "g_compat": 40, "bi_sxy": 10, "bi_srgb": 4, "bi_compat": 25,
+                                        "iterations": 5}
+        elif 'DeepGlobe' in self.dataset:
+            self.crf_config_train = {"g_sxy": 3 / 192, "g_compat": 3, "bi_sxy": 80 / 192, "bi_srgb": 13, "bi_compat": 10,
                                      "iterations": 5}
-            self.crf_config_test = {"g_sxy": 1, "g_compat": 20, "bi_sxy": 10, "bi_srgb": 40, "bi_compat": 50,
-                                     "iterations": 5}
-        elif self.dataset == 'ADP-func':
-            self.crf_config_train = {"g_sxy": 3 / 12, "g_compat": 3, "bi_sxy": 80 / 12, "bi_srgb": 13, "bi_compat": 10,
-                                     "iterations": 5}
-            self.crf_config_test = {"g_sxy": 3, "g_compat": 40, "bi_sxy": 10, "bi_srgb": 4, "bi_compat": 25,
-                                    "iterations": 5}
+            self.crf_config_test = {"g_sxy": 3, "g_compat": 3, "bi_sxy": 80, "bi_srgb": 13, "bi_compat": 10,
+                                    "iterations": 10}
 
         self.net = {}
         self.weights = {}
@@ -224,7 +228,7 @@ class SEC():
                     last_layer = layer
             if layer.startswith("drop"):
                 with tf.name_scope(layer) as scope:
-                    self.net[layer] = tf.nn.dropout( self.net[last_layer],rate=self.net["drop_prob"])
+                    self.net[layer] = tf.nn.dropout( self.net[last_layer], keep_prob=1-self.net["drop_prob"])
                     last_layer = layer
 
         return last_layer
@@ -286,7 +290,7 @@ class SEC():
     def load_init_model(self):
         """Load initialized layer"""
         model_path = self.config["init_model_path"]
-        self.init_model = np.load(model_path,encoding="latin1").item()
+        self.init_model = np.load(model_path, encoding="latin1", allow_pickle=True).item()
 		
     def get_weights_and_bias(self,layer):
         """Load saved weights and biases for saved network

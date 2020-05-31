@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="PYTHON_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <excludeFolder url="file://$MODULE_DIR$/01_train/ckpt" />
+      <excludeFolder url="file://$MODULE_DIR$/01_train/eval" />
+      <excludeFolder url="file://$MODULE_DIR$/01_train/log" />
+      <excludeFolder url="file://$MODULE_DIR$/02_cues/cues_eval" />
+      <excludeFolder url="file://$MODULE_DIR$/02_cues/cues_eval_old" />
+      <excludeFolder url="file://$MODULE_DIR$/02_cues/cues_train" />
+      <excludeFolder url="file://$MODULE_DIR$/02_cues/cues_train_old" />
+      <excludeFolder url="file://$MODULE_DIR$/02_cues/out" />
+      <excludeFolder url="file://$MODULE_DIR$/02_cues/out_old" />
+      <excludeFolder url="file://$MODULE_DIR$/03a_sec-dsrg/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/03a_sec-dsrg/.ipynb_checkpoints" />
+      <excludeFolder url="file://$MODULE_DIR$/03a_sec-dsrg/eval" />
+      <excludeFolder url="file://$MODULE_DIR$/03a_sec-dsrg/figs" />
+      <excludeFolder url="file://$MODULE_DIR$/03a_sec-dsrg/log" />
+      <excludeFolder url="file://$MODULE_DIR$/03a_sec-dsrg/out" />
+      <excludeFolder url="file://$MODULE_DIR$/03b_irn/eval" />
+      <excludeFolder url="file://$MODULE_DIR$/03b_irn/log" />
+      <excludeFolder url="file://$MODULE_DIR$/03b_irn/result" />
+      <excludeFolder url="file://$MODULE_DIR$/03b_irn/sess" />
+      <excludeFolder url="file://$MODULE_DIR$/03b_irn/tuning_logs" />
+      <excludeFolder url="file://$MODULE_DIR$/03c_hsn/.idea" />
+      <excludeFolder url="file://$MODULE_DIR$/03c_hsn/.ipynb_checkpoints" />
+      <excludeFolder url="file://$MODULE_DIR$/03c_hsn/eval" />
+      <excludeFolder url="file://$MODULE_DIR$/03c_hsn/gt" />
+      <excludeFolder url="file://$MODULE_DIR$/03c_hsn/out" />
+      <excludeFolder url="file://$MODULE_DIR$/database" />
+    </content>
+    <orderEntry type="jdk" jdkName="Python 3.5" jdkType="Python SDK" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+  <component name="TestRunnerService">
+    <option name="PROJECT_TEST_RUNNER" value="Unittests" />
+  </component>
+</module>

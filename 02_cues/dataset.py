@@ -5,14 +5,14 @@ import pandas as pd
 class Dataset:
     """Class for implementing dataset handling"""
 
-    def __init__(self, data_type='ADP', size=321, batch_size=16):
+    def __init__(self, data_type='ADP', size=321, batch_size=16, first_inds=None):
         self.data_type = data_type
         self.size = size
         self.batch_size = batch_size
         self.database_dir = os.path.join(os.path.dirname(os.getcwd()), 'database')
         #
         self.load_attributes()
-        self.load_data()
+        self.load_data(first_inds)
 
     def load_attributes(self):
         """Load dataset attributes, especially ImageDataGenerator"""
@@ -54,7 +54,7 @@ class Dataset:
                 vertical_flip=False,  # randomly flip images
                 preprocessing_function=normalize)  # normalize by subtracting training set image mean, dividing by training set image std
         elif self.data_type == 'VOC2012':
-            self.devkit_dir = os.path.join(self.database_dir, 'VOCdevkit', 'VOC2012')
+            self.devkit_dir = os.path.join(self.database_dir, 'VOCdevkit', 'VOC_trainaug_val', 'VOC2012')
             self.sets = ['trainaug', 'val']
             self.is_evals = [False, True]
             self.class_names = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow',
@@ -81,10 +81,10 @@ class Dataset:
                                                 preprocessing_function=normalize)
         elif 'DeepGlobe' in self.data_type:
             self.devkit_dir = os.path.join(self.database_dir, 'DGdevkit')
-            if self.data_type == 'DeepGlobe_train75':
+            if self.data_type == 'DeepGlobe':
                 self.sets = ['train75', 'test']
                 self.is_evals = [False, True]
-            elif self.data_type == 'DeepGlobe_train37.5':
+            elif self.data_type == 'DeepGlobe_balanced':
                 self.sets = ['train37.5', 'test']
                 self.is_evals = [False, True]
             self.class_names = ['urban', 'agriculture', 'rangeland', 'forest', 'water', 'barren', 'unknown']  # 7 classes
@@ -95,9 +95,9 @@ class Dataset:
             self.datagen_nonaug = ImageDataGenerator(
                 rescale=1. / 255)
 
-    def load_data(self):
+    def load_data(self, first_inds):
         """Load DataFrameIterator for dataset"""
-
+        assert type(first_inds) == int
         self.set_gens = {}
         if self.data_type == 'ADP':
             img_folder = 'PNGImages'
@@ -106,6 +106,8 @@ class Dataset:
 
         for s, is_eval in zip(self.sets, self.is_evals):
             set_df = pd.read_csv(os.path.join(self.devkit_dir, 'ImageSets', 'Segmentation', s + '.csv'))
+            if first_inds is not None:
+                set_df = set_df.iloc[:min(first_inds, set_df.shape[0]), :] #
             if not is_eval:
                 self.set_gens[s] = self.datagen_aug.flow_from_dataframe(dataframe=set_df,
                                                               directory=os.path.join(self.devkit_dir, img_folder),
