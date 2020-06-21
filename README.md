@@ -32,69 +32,122 @@ Mandatory
 
 * `python` (checked on 3.5)
 * `scipy` (checked on 1.2.0)
-* `skimage` / `scikit-image` (checked on 0.14.2)
+* `skimage` / `scikit-image` (checked on 0.15.0)
 * `keras` (checked on 2.2.4)
 * `tensorflow` (checked on 1.13.1)
-* `numpy` (checked on 1.16.2)
+* `tensorflow-gpu` (checked on 1.13.1)
+* `numpy` (checked on 1.18.1)
 * `pandas` (checked on 0.23.4)
 * `cv2` / `opencv-python` (checked on 3.4.4.19)
+* `cython`
+* `imageio` (checked on 2.5.0)
+* `chainercv` (checked on 0.12.0)
+* `pydensecrf` (git+https://github.com/lucasb-eyer/pydensecrf.git)
+* `torch` (checked on 1.1.0)
+* `torchvision` (checked on 0.2.2.post3)
+* `tqdm`
 
 Optional
 
 * `matplotlib` (checked on 3.0.2)
 * `jupyter`
 
+To utilize the code efficiently, GPU support is required. The following configurations have been tested to work successfully:
+* CUDA Version: 10
+* CUDA Driver Version: r440
+* CUDNN Version: 7.6.4 - 7.6.5
+We do not guarantee proper functioning of the code using different versions of CUDA or CUDNN.
+
+## Hardware Requirements
+Each method used in this repository has different GPU memory requirements. We have listed the approximate GPU memory requirements for each model through our own experiments:
+* `01_train`: ~6 GB (e.g. NVIDIA RTX 2060)
+* `02_cues`: ~6 GB (e.g. NVIDIA RTX 2060)
+* `03a_sec-dsrg`: ~11 GB (e.g. NVIDIA GTX 2080 Ti)
+* `03b_irn`: ~8 GB (e.g. NVIDIA GTX 1070)
+* `03c_hsn`: ~6 GB (e.g. NVIDIA RTX 2060)
+
 ## Downloading data
 
-Download `wsss-analysis_data.zip` (9.9 GB) from Google Drive containing pretrained models, ground-truth annotations, and images [here](https://drive.google.com/file/d/1D77LEFqmaeRDqoz4nPipTmJI03377mr2/view?usp=sharing) and extract the contents into your `wsss-analysis\database` directory.
+The pretrained models, ground-truth annotations, and images used in this paper are available on Zenodo under a Creative Commons Attribution license: [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.3902506.svg)](http://dx.doi.org/10.5281/zenodo.3902506). Please extract the contents into your `wsss-analysis\database` directory. If you choose to extract the data to another directory, please modify the filepaths accordingly in `settings.ini`.
 
 Note: the training-set images of ADP are released on a case-by-case basis due to the confidentiality agreement for releasing the data. To obtain access to `wsss-analysis\database\ADPdevkit\ADPRelease1\JPEGImages` and `wsss-analysis\database\ADPdevkit\ADPRelease1\PNGImages` needed for `gen_cues` in `01_weak_cues`, apply for access separately [here](http://www.dsp.utoronto.ca/projects/ADP/ADP_Database/).
 
 ## Running the code
 
 ### Scripts
-To run `01_weak_cues` (cues performance in Section 5):
+To run `02_cues` (generate weak cues for SEC and DSRG):
 ```
-python 01_weak_cues/demo.py
-```
-
-To run `02_hsn_v1_lean` (HistoSegNet performance in Section 5):
-```
-python 02_hsn_v1_lean/demo.py
+cd 02_cues
+python demo.py
 ```
 
-To run `03_sec-dsrg` (SEC, DSRG performance in Section 5):
+To run `03a_sec-dsrg` (train/evaluate SEC, DSRG performance in Section 5; to omit training, comment out lines 76-77 in `03a_sec-dsrg\demo.py`):
 ```
-./run_all.sh
+cd 03a_sec-dsrg
+python demo.py
+```
+
+To run `03b_irn` (train/evaluate IRNet and Grad-CAM performance in Section 5):
+```
+cd 03b_irn
+python demo_tune.py
+```
+
+To run `03b_irn` (evaluate pre-trained Grad-CAM performance in Section 5):
+```
+cd 03b_irn
+python demo_cam.py
+```
+
+To run `03b_irn` (evaluate pre-trained IRNet performance in Section 5):
+```
+cd 03b_irn
+python demo_sem_seg.py
+```
+
+To run `03c_hsn` (evaluate HistoSegNet performance in Section 5):
+```
+cd 03c_hsn
+python demo.py
 ```
 
 ### Notebooks
 
-`02_hsn_v1_lean`:
-* VGG16-HistoSegNet on ADP: [02_hsn_v1_lean/02_hsn_v1_lean-adp.ipynb](02_hsn_v1_lean/02_hsn_v1_lean-adp.ipynb)
-* VGG16-HistoSegNet on VOC2012: [02_hsn_v1_lean/02_hsn_v1_lean-voc2012.ipynb](02_hsn_v1_lean/02_hsn_v1_lean-voc2012.ipynb)
-* VGG16-HistoSegNet on DeepGlobe: [02_hsn_v1_lean/02_hsn_v1_lean-deepglobe.ipynb](02_hsn_v1_lean/02_hsn_v1_lean-deepglobe.ipynb)
+`03a_sec-dsrg`:
+* VGG16-SEC on ADP-morph: [03a_sec-dsrg/03a_sec-adp-morph.ipynb](03a_sec-dsrg/03a_sec-adp-morph.ipynb)
+* VGG16-SEC on ADP-func: [03a_sec-dsrg/03a_sec-adp-func.ipynb](03a_sec-dsrg/03a_sec-adp-func.ipynb)
+* VGG16-SEC on VOC2012: [03a_sec-dsrg/03a_sec-voc2012.ipynb](03a_sec-dsrg/03a_sec-voc2012.ipynb)
+* VGG16-SEC on DeepGlobe: [03a_sec-dsrg/03a_sec-deepglobe.ipynb](03a_sec-dsrg/03a_sec-deepglobe.ipynb)
 
-`03_sec-dsrg`:
-* VGG16-SEC on ADP-morph: [03_sec-dsrg/03_sec-adp-morph.ipynb](03_sec-dsrg/03_sec-adp-morph.ipynb)
-* VGG16-SEC on ADP-func: [03_sec-dsrg/03_sec-adp-func.ipynb](03_sec-dsrg/03_sec-adp-func.ipynb)
-* VGG16-SEC on VOC2012: [03_sec-dsrg/03_sec-voc2012.ipynb](03_sec-dsrg/03_sec-voc2012.ipynb)
-* VGG16-SEC on DeepGlobe: [03_sec-dsrg/03_sec-deepglobe.ipynb](03_sec-dsrg/03_sec-deepglobe.ipynb)
+`03b_irn`:
+* VGG16-IRNet on ADP-morph: (TODO)
+* VGG16-IRNet on ADP-func: (TODO)
+* VGG16-IRNet on VOC2012: (TODO)
+* VGG16-IRNet on DeepGlobe: (TODO)
+
+`03c_hsn`:
+* VGG16-HistoSegNet on ADP: [03c_hsn/03c_hsn-adp.ipynb](03c_hsn/03c_hsn-adp.ipynb)
+* VGG16-HistoSegNet on VOC2012: [03c_hsn/03c_hsn-voc2012.ipynb](03c_hsn/03c_hsn-voc2012.ipynb)
+* VGG16-HistoSegNet on DeepGlobe: [03c_hsn/03c_hsn-deepglobe.ipynb](03c_hsn/03c_hsn-deepglobe.ipynb)
+
 
 ## Results
-(NOTE: some numerical results differ slightly from those reported in the paper due to a minor variation in the way the Grad-CAM gradients are normalized for X1.7/M7-HistoSegNet. See [hsn_v1](https://github.com/lyndonchan/hsn_v1) to replicate those results for ADP precisely.)
+To access each method's evaluation results, check the associated `eval` (for numerical results) and `out` (for outputted images) folders. For easy access to all evaluated results, run `scripts/extract_eval.py`.
 
-| Seeding   Network | -         | -       | VGG16    | -        | -        | -           | X1.7/M7  | -        | -        | -           |
-|-------------------|-----------|---------|----------|----------|----------|-------------|----------|----------|----------|-------------|
-| WSSS Method       | -         | -       | cues     | SEC      | DSRG     | HistoSegNet | cues     | SEC      | DSRG     | HistoSegNet |
-| Dataset           | Training  | Testing |          |          |          |             |          |          |          |             |
-| ADP-morph         | train     | tuning  | 0.117049 | 0.107302 | 0.0804   | 0.132546    | 0.142437 | 0.135965 | 0.109365 | 0.27546     |
-| ADP-morph         | train     | segtest | 0.135604 | 0.114094 | 0.06901  | 0.161593    | 0.166829 | 0.133692 | 0.071734 | 0.261562    |
-| ADP-func          | train     | tuning  | 0.298741 | 0.282319 | 0.374979 | 0.442151    | 0.409418 | 0.322156 | 0.293622 | 0.506632    |
-| ADP-func          | train     | segtest | 0.366214 | 0.280967 | 0.452233 | 0.441148    | 0.438453 | 0.308283 | 0.322001 | 0.480201    |
-| VOC2012           | train     | val     | 0.278712 | 0.369245 | 0.31154  | 0.221363    | 0.149691 | 0.149691 | 0.267664 | 0.058311    |
-| DeepGlobe         | train75   | test25  | 0.182277 | 0.085352 | 0.109707 | 0.23613     | 0.176401 | 0.176401 | 0.136987 | 0.264118    |
-| DeepGlobe         | train37.5 | test25  | 0.232526 | 0.09789  | 0.02148  | 0.306189    | 0.153347 | 0.153347 | 0.215143 | 0.208705    |
+(NOTE: the numerical results obtained for SEC and DSRG DeepGlobe_balanced differ slightly from those reported in the paper due to retraining the models during code cleanup. Also, `tuning` is equivalent to the validation set and `segtest` is equivalent to the evaluation set in ADP. See [hsn_v1](https://github.com/lyndonchan/hsn_v1) to replicate those results for ADP precisely.)
+
+| Network | -         | -       | VGG16    | -        | -        | -           | -           | X1.7/M7  | -        | -        | -           | -           |
+|-------------------|-----------|---------|----------|----------|----------|-------------|-------------|----------|----------|----------|-------------|-------------|
+| WSSS Method | -         | -       | Grad-CAM | SEC      | DSRG     |IRNet| HistoSegNet | Grad-CAM | SEC      | DSRG     |IRNet| HistoSegNet |
+| Dataset   | Training  | Testing |    "      |     "     |   "       |     "     |     "     |     "     |     "     |     "        |     "     | " |
+| ADP-morph | train                 | validation |0.14507|0.10730|0.08826|0.15068|0.13255|0.20997|0.13597|0.13458|0.21450|0.27546|
+| ADP-morph | train                 | evaluation |0.14946|0.11409|0.08011|0.15546|0.16159|0.21426|0.13369|0.10835|0.21737|0.26156|
+| ADP-func  | train                 | validation |0.34813|0.28232|0.37193|0.35016|0.44215|0.35233|0.32216|0.28625|0.34730|0.50663|
+| ADP-func  | train                 | evaluation |0.38187|0.28097|0.44726|0.36318|0.44115|0.37910|0.30828|0.31734|0.38943|0.48020|
+| VOC2012   | train                 | val        |0.26262|0.37058|0.32129|0.31198|0.22707|0.14946|0.37629|0.35004|0.17844|0.09201|
+| DeepGlobe | training (75% test)   | evaluation (25% test) |0.28037|0.24005|0.28841|0.29405|0.24019|0.21260|0.24841|0.35258|0.24620|0.29398|
+| DeepGlobe | training (37.5% test) | evaluation (25% test) |0.28083|0.25512|0.32017|0.29207|0.30410|0.22266|0.20050|0.26470|0.21303|0.21617|
+
 
 ## Examples
 
@@ -109,3 +162,8 @@ To run `03_sec-dsrg` (SEC, DSRG performance in Section 5):
 
 ### DeepGlobe
 ![](/qual_eval_DeepGlobe.png)
+
+## TODO
+1. Improve comments and code documentation
+2. Add IRNet notebooks
+3. Clean up IRNet code

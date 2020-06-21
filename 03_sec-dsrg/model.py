@@ -2,12 +2,13 @@ import os
 import time
 import pickle
 import cv2
-import numpy.matlib
+import configparser
 import tensorflow as tf
 import skimage.color as imgco
 import skimage.io as imgio
 import multiprocessing
 import pandas as pd
+import numpy.matlib
 import traceback
 
 from utilities import *
@@ -16,7 +17,11 @@ from lib.crf import crf_inference
 from DSRG import DSRG
 from SEC import SEC
 
-MODEL_WSSS_ROOT = '../database/models_wsss'
+config = configparser.ConfigParser()
+config.read('../settings.ini')
+DATA_ROOT = config['Download Directory']['data_dir']
+WSSS_MODEL_ROOT = os.path.join(config['Download Directory']['data_dir'], config['Data Folders']['model_wsss_dir'])
+CUES_DIR = os.path.join(config['Download Directory']['data_dir'], config['Data Folders']['cues_dir'])
 
 class Model():
     """Wrapper class for SEC and DSRG WSSS methods"""
@@ -45,24 +50,27 @@ class Model():
         if self.task == 'predict':
             if self.dataset in ['ADP-morph', 'ADP-func']:
                 self.phase = self.eval_setname
-                self.sess_id = self.dataset + '_' + self.eval_setname + '_' + self.seed_type + '_' + str(self.threshold)
             elif self.dataset == 'VOC2012':
                 self.phase = 'val'
-                self.sess_id = self.dataset + '_val_' + self.seed_type + '_' + str(self.threshold)
             elif 'DeepGlobe' in self.dataset:
                 self.phase = 'test'
-                self.sess_id = self.dataset + '_test_' + self.seed_type + '_' + str(self.threshold)
         elif self.task == 'train':
             self.phase = 'train'
-            self.sess_id = self.dataset + '_train_' + self.seed_type + '_' + str(self.threshold)
         # paths
+<<<<<<< Updated upstream:03_sec-dsrg/model.py
         self.save_dir = os.path.join(MODEL_WSSS_ROOT, self.method, self.dataset + '_' + self.seed_type + '_' +
                                      str(self.threshold))
         self.out_dir = os.path.join('out', self.method, self.sess_id)
         self.eval_dir = os.path.join('eval', self.method, self.sess_id)
         new_dirs = [self.save_dir, self.out_dir, self.eval_dir]
+=======
+        self.save_dir = os.path.join(WSSS_MODEL_ROOT, self.method, self.dataset + '_' + self.seed_type)
+        self.out_dir = os.path.join('out', self.method, self.dataset + '_train_' + self.seed_type)
+        self.eval_dir = os.path.join('eval', self.method, self.dataset + '_train_' + self.seed_type)
+        new_dirs = [self.save_dir, self.eval_dir]
+>>>>>>> Stashed changes:03a_sec-dsrg/model.py
         if self.task == 'train':
-            self.log_dir = os.path.join('log', self.method, self.sess_id)
+            self.log_dir = os.path.join('log', self.method, self.dataset + '_train_' + self.seed_type)
             new_dirs.append(self.log_dir)
         for pth in new_dirs:
             if not os.path.exists(pth):
@@ -76,16 +84,14 @@ class Model():
         self.l2loss = {"total": 0}
 
         if self.method == 'DSRG':
-            self.init_model_path = os.path.join(MODEL_WSSS_ROOT, self.method, 'vgg16_deeplab_aspp.npy')
+            self.init_model_path = os.path.join(WSSS_MODEL_ROOT, self.method, 'vgg16_deeplab_aspp.npy')
         elif self.method == 'SEC':
-            self.init_model_path = os.path.join(MODEL_WSSS_ROOT, self.method, 'init.npy')
-
-        database_dir = os.path.join(os.path.dirname(os.getcwd()), 'database')
+            self.init_model_path = os.path.join(WSSS_MODEL_ROOT, self.method, 'init.npy')
 
         if self.dataset == 'ADP-morph':
             self.num_classes = 29
             self.img_mean = np.array([208.8502, 163.2828, 207.1458])
-            self.dataset_dir = os.path.join(database_dir, 'ADPdevkit', 'ADPRelease1')
+            self.dataset_dir = os.path.join(DATA_ROOT, 'ADPdevkit', 'ADPRelease1')
             self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
             if self.task == 'train':
                 self.run_categories = ['tuning', 'segtest']
@@ -104,7 +110,7 @@ class Model():
         elif self.dataset == 'ADP-func':
             self.num_classes = 5
             self.img_mean = np.array([208.8502, 163.2828, 207.1458])
-            self.dataset_dir = os.path.join(database_dir, 'ADPdevkit', 'ADPRelease1')
+            self.dataset_dir = os.path.join(DATA_ROOT, 'ADPdevkit', 'ADPRelease1')
             self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
             if self.task == 'train':
                 self.run_categories = ['tuning', 'segtest']
@@ -115,7 +121,11 @@ class Model():
         elif self.dataset == 'VOC2012':
             self.num_classes = 21
             self.img_mean = np.array([104.00698793, 116.66876762, 122.67891434])
+<<<<<<< Updated upstream:03_sec-dsrg/model.py
             self.dataset_dir = os.path.join(database_dir, 'VOCdevkit', 'VOC2012')
+=======
+            self.dataset_dir = os.path.join(DATA_ROOT, 'VOCdevkit', 'VOC_trainaug_val', 'VOC2012')
+>>>>>>> Stashed changes:03a_sec-dsrg/model.py
             self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list.txt')
             self.run_categories = ['val']
             self.class_names = ['__background__', 'aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat',
@@ -130,10 +140,10 @@ class Model():
         elif 'DeepGlobe' in self.dataset:
             self.num_classes = 6
             self.img_mean = np.array([0.0, 0.0, 0.0])
-            self.dataset_dir = os.path.join(database_dir, 'DGdevkit')
-            if self.dataset == 'DeepGlobe_train75':
+            self.dataset_dir = os.path.join(DATA_ROOT, 'DGdevkit')
+            if self.dataset == 'DeepGlobe':
                 self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list_train75.txt')
-            elif self.dataset == 'DeepGlobe_train37.5':
+            elif self.dataset == 'DeepGlobe_balanced':
                 self.input_path = os.path.join(self.dataset_dir, 'ImageSets', 'Segmentation', 'input_list_train37.5.txt')
             self.run_categories = ['test']
             self.class_names = ['urban', 'agriculture', 'rangeland', 'forest', 'water', 'barren']
@@ -166,7 +176,10 @@ class Model():
         """
         # cues_labels = [self.cues_data[x] for i, x in enumerate(self.cues_data.keys()) if '_labels' in x]
         # [i for i,x in enumerate(cues_labels) if 32 in x]
+<<<<<<< Updated upstream:03_sec-dsrg/model.py
         cues_root = os.path.join(os.path.dirname(os.getcwd()), '01_weak_cues')
+=======
+>>>>>>> Stashed changes:03a_sec-dsrg/model.py
         data_f = {}
         data_len = {}
         for phase in phases:
@@ -174,11 +187,18 @@ class Model():
             data_len[phase] = 0
             if phase in ['train']:
                 if 'ADP' in self.dataset:
+<<<<<<< Updated upstream:03_sec-dsrg/model.py
                     cues_path = os.path.join(cues_root, 'cues_train', 'ADP_' + self.seed_type + '_' +
                                          str(self.threshold), self.dataset.split('-')[-1], 'localization_cues.pickle')
                 else:
                     cues_path = os.path.join(cues_root, 'cues_train', self.dataset + '_' + self.seed_type + '_' +
                                              str(self.threshold), 'localization_cues.pickle')
+=======
+                    cues_path = os.path.join(CUES_DIR, 'ADP_' + self.seed_type, self.dataset.split('-')[-1],
+                                             'localization_cues.pickle')
+                else:
+                    cues_path = os.path.join(CUES_DIR, self.dataset + '_' + self.seed_type, 'localization_cues.pickle')
+>>>>>>> Stashed changes:03a_sec-dsrg/model.py
                 self.cues_data = pickle.load(open(cues_path, "rb"), encoding="iso-8859-1")
                 with open(self.input_path, "r") as f:
                     for line in f.readlines():
@@ -586,6 +606,8 @@ class Model():
                                           val_category, saveimg_dir, should_overlay=True, is_eval=True)
                 if self.verbose:
                     print('mIoU [%s] = %f' % (val_category, miou_val))
+        self.pool.close()
+        self.pool.join()
 
     def single_crf_metrics(self, params):
         """Run dense CRF and save results to file
