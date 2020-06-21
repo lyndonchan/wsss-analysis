@@ -1,13 +1,17 @@
 # wsss-analysis
 
+The code of: A Comprehensive Analysis of Weakly-Supervised Semantic Segmentation in Different Image Domains, arXiv pre-print 2019 [paper](https://arxiv.org/abs/1912.11186).
+
+
+
 ## Introduction
 ![](/methods.png)
 
-We conduct the first comprehensive analysis of Weakly-Supervised Semantic Segmentation (WSSS) with image label supervision in different image domains (submitted to IJCV: [pre-print](https://arxiv.org/abs/1912.11186)). WSSS has been almost exclusively evaluated on PASCAL VOC2012 but little work has been done on applying to different image domains, such as histopathology and satellite images. The paper analyzes the compatibility of different methods for representative datasets and presents principles for applying to an unseen dataset.
+We conduct the first comprehensive analysis of Weakly-Supervised Semantic Segmentation (WSSS) with image label supervision in different image domains. WSSS has been almost exclusively evaluated on PASCAL VOC2012 but little work has been done on applying to different image domains, such as histopathology and satellite images. The paper analyzes the compatibility of different methods for representative datasets and presents principles for applying to an unseen dataset.
 
 ![](/method.png)
 
-In this repository, we provide the evaluation code used to generate the weak localization cues and final segmentations from Section 5 (Performance Evaluation) of the paper. The code release enables reproducing the results in our paper. The Keras implementation of HistoSegNet was adapted from [hsn_v1](https://github.com/lyndonchan/hsn_v1); the Tensorflow implementations of SEC and DSRG were adapted from [SEC-tensorflow](https://github.com/xtudbxk/SEC-tensorflow) and [DSRG-tensorflow](https://github.com/xtudbxk/DSRG-tensorflow), respectively. Pretrained models and evaluation images are also available for download.
+In this repository, we provide the evaluation code used to generate the weak localization cues and final segmentations from Section 5 (Performance Evaluation) of the paper. The code release enables reproducing the results in our paper. The Keras implementation of HistoSegNet was adapted from [hsn_v1](https://github.com/lyndonchan/hsn_v1); the Tensorflow implementations of SEC and DSRG were adapted from [SEC-tensorflow](https://github.com/xtudbxk/SEC-tensorflow) and [DSRG-tensorflow](https://github.com/xtudbxk/DSRG-tensorflow), respectively. The PyTorch implementation of IRNet was adapted from [irn](https://github.com/jiwoon-ahn/irn). Pretrained models and evaluation images are also available for download.
 
 ## Citing this repository
 
