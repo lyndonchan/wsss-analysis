@@ -17,13 +17,15 @@ In this repository, we provide the evaluation code used to generate the weak loc
 
 If you find this code useful in your research, please consider citing us:
 
-        @misc{chan2019comprehensive,
+        @article{chan2019comprehensive,
             title={A Comprehensive Analysis of Weakly-Supervised Semantic Segmentation in Different Image Domains},
-            author={Lyndon Chan and Mahdi S. Hosseini and Konstantinos N. Plataniotis},
-            year={2019},
-            eprint={1912.11186},
-            archivePrefix={arXiv},
-            primaryClass={cs.CV}
+            author={Chan, Lyndon and Hosseini, Mahdi S. and Plataniotis, Konstantinos N.},
+            journal={International Journal of Computer Vision},
+            volume={},
+            number={},
+            pages={},
+            year={2020},
+            publisher={Springer}
         }
 
 ## Getting Started
